@@ -1,0 +1,49 @@
+# CI for the open-source repository.
+# Documented in docs/ci.md — keep that file in sync with any change here.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-test:
+    name: build-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build
+        run: go build ./...
+      - name: Test
+        run: go test ./...
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+
+  # The open-source repository must never reference the closed-source
+  # repository, in any file. This is the automated guard for that boundary.
+  boundary:
+    name: boundary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: OSS must not reference thinre-cloud
+        run: |
+          if grep -rn "thinre-cloud" --exclude-dir=.git .; then
+            echo "::error::open-source repository references thinre-cloud"
+            exit 1
+          fi
+          echo "boundary clean"

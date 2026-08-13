@@ -1,0 +1,34 @@
+# Release pipeline: on every vX.Y.Z tag, build the Supervisor for the
+# supported Linux targets and attach the binaries to a GitHub release.
+# The same tag is what thinre-cloud pins as its Go module dependency.
+# Documented in docs/ci.md — keep that file in sync with any change here.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  binaries:
+    name: binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build supervisor binaries
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p dist
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-X main.version=${GITHUB_REF_NAME}" -o dist/thinre-supervisor_linux_amd64 ./cmd/supervisor
+          GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-X main.version=${GITHUB_REF_NAME}" -o dist/thinre-supervisor_linux_arm64 ./cmd/supervisor
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

@@ -1,0 +1,4 @@
+# golangci-lint v2 configuration. Defaults are deliberately kept: the default
+# linter set (govet, staticcheck, errcheck, ineffassign, unused) is enough
+# until a real need justifies more.
+version: "2"

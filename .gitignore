@@ -1,0 +1,8 @@
+# Build output
+/dist/
+*.exe
+
+# Editor/OS noise
+.idea/
+.vscode/
+.DS_Store
