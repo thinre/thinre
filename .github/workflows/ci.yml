@@ -33,18 +33,18 @@ jobs:
         with:
           version: latest
 
-  # The open-source code must never depend on the closed-source repository.
-  # The guard is scoped to Go sources and module files: documentation may
-  # legitimately mention the sibling repo by name, but code may not.
+  # Nothing in the open-source repository — code or documentation — may
+  # reference the closed-source repository by name. The grep pattern below is
+  # the only permitted occurrence of that name in this repository.
   boundary:
     name: boundary
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: OSS code must not reference thinre-cloud
+      - name: no references to the closed-source repository
         run: |
-          if grep -rn "thinre-cloud" --include="*.go" --include="go.mod" --include="go.sum" .; then
-            echo "::error::open-source code references thinre-cloud"
+          if grep -rn "thinre-cloud" --include="*.go" --include="go.mod" --include="go.sum" --include="*.md" .; then
+            echo "::error::repository references the closed-source repository"
             exit 1
           fi
           echo "boundary clean"

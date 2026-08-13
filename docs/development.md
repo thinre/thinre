@@ -15,26 +15,15 @@ make test
 make lint
 ```
 
-## Working alongside thinre-cloud
+## Working alongside Thinre Cloud
 
-Thinre Cloud (closed source, separate repository) imports this module as a versioned dependency. For local cross-repo development, use an **uncommitted** Go workspace one directory above both checkouts:
-
-```
-workspace/
-├── thinre/          (this repo)
-├── thinre-cloud/
-└── go.work          (never committed to either repo)
-```
-
-```
-go work init ./thinre ./thinre-cloud
-```
+Thinre Cloud (the closed-source control plane) imports this module as a versioned dependency, resolved from tagged releases through the Go module proxy. Its own development setup is documented in its own repository.
 
 Rules:
 
-- Never commit a `replace` directive.
-- The dependency is one-way: this repository must never reference `thinre-cloud`. CI enforces this (see [ci.md](ci.md)).
-- When cloud work needs new code from this repo: merge here first, tag `vX.Y.Z`, then bump the `require` in thinre-cloud.
+- The dependency is one-way: nothing in this repository — code or documentation — may reference the closed-source repository. CI enforces this (see [ci.md](ci.md)).
+- Never commit a `replace` directive or a `go.work` file.
+- When cloud-side work needs new code from this repo: merge here first, tag `vX.Y.Z`, then bump the requirement on the cloud side.
 
 ## Platform notes
 
