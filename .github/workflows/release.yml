@@ -1,6 +1,7 @@
 # Release pipeline: on every vX.Y.Z tag, build the Supervisor for the
 # supported Linux targets and attach the binaries to a GitHub release.
-# The same tag is what thinre-cloud pins as its Go module dependency.
+# The same tag is what the closed-source control plane pins as its Go
+# module dependency.
 # Documented in docs/ci.md — keep that file in sync with any change here.
 name: Release
 
