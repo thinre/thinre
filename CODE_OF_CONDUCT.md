@@ -4,4 +4,4 @@ This project follows the [Contributor Covenant v2.1](https://www.contributor-cov
 
 In short: be respectful, be constructive, assume good faith. Harassment or personal attacks are not tolerated.
 
-To report unacceptable behavior, contact the maintainers at app.thinre@gmail.com. Reports are handled confidentially.
+To report unacceptable behavior, contact the maintainers at contact@thinre.com. Reports are handled confidentially.
