@@ -10,7 +10,7 @@ Any change to a workflow, Makefile target, or this pipeline behavior must update
 |---|---|
 | `build-test` | `go build ./...` then `go test ./...` |
 | `lint` | `golangci-lint run` (config: `.golangci.yml`, default linter set) |
-| `boundary` | Greps the whole tree for `thinre-cloud`; any hit fails the build. This enforces the one-way dependency rule: the open-source repository must never reference the closed-source one. |
+| `boundary` | Greps all Go sources and module files (`*.go`, `go.mod`, `go.sum`) for `thinre-cloud`; any hit fails the build. This enforces the one-way dependency rule: open-source **code** must never depend on the closed-source repository. Documentation may mention the sibling repo by name. |
 
 All three jobs are required status checks on `main` (branch protection). Pull requests merge with **merge commits only** — squash and rebase merging are disabled at the repository level.
 
