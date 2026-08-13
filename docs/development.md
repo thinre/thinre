@@ -20,9 +20,9 @@ make lint
 Thinre Cloud (closed source, separate repository) imports this module as a versioned dependency. For local cross-repo development, use an **uncommitted** Go workspace one directory above both checkouts:
 
 ```
-C:\thinre\
-├── thinre\          (this repo)
-├── thinre-cloud\
+workspace/
+├── thinre/          (this repo)
+├── thinre-cloud/
 └── go.work          (never committed to either repo)
 ```
 
