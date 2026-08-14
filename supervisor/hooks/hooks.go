@@ -44,6 +44,11 @@ func Run(ctx context.Context, h *integrationspec.Hook, extraArgs ...string) (str
 
 	cmd := exec.CommandContext(ctx, h.Executable, append(append([]string{}, h.Args...), extraArgs...)...)
 	cmd.Env = minimalEnv
+	// When the timeout kills the hook, grandchild processes it spawned may
+	// keep the output pipes open; WaitDelay stops Wait from blocking on
+	// them forever. (Full process-group termination is an RT-SEC-002
+	// hardening item.)
+	cmd.WaitDelay = 2 * time.Second
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &boundedWriter{w: &stdout}
