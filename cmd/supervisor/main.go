@@ -19,6 +19,7 @@ import (
 	"github.com/thinre/thinre/supervisor"
 	"github.com/thinre/thinre/supervisor/enroll"
 	"github.com/thinre/thinre/supervisor/identity"
+	"github.com/thinre/thinre/supervisor/opamp"
 )
 
 // version is stamped at build time via -ldflags "-X main.version=...".
@@ -106,8 +107,14 @@ func run(log *slog.Logger, configPath string) error {
 		log.Info("identity loaded", "runtime_id", id.RuntimeID, "organization_id", id.OrganizationID)
 	}
 
-	// The OpAMP connection loop (step 2.5) replaces this wait.
-	<-ctx.Done()
+	err = opamp.Run(ctx, opamp.Params{
+		Log:               log,
+		OpAMPURL:          cfg.OpAMPURL,
+		MachineToken:      id.MachineToken,
+		RuntimeID:         id.RuntimeID,
+		SupervisorVersion: version,
+		Manifest:          manifest,
+	})
 	log.Info("shutting down")
-	return nil
+	return err
 }
