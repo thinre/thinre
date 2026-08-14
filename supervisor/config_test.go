@@ -1,0 +1,94 @@
+package supervisor
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func writeConfig(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "supervisor.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+const validConfig = `
+api_url: https://api.example.test
+opamp_url: wss://opamp.example.test
+integration_manifest: /etc/thinre/integrations/blackbox.yaml
+data_dir: /var/lib/thinre
+name: test-runtime
+`
+
+func TestLoadConfig(t *testing.T) {
+	cfg, err := LoadConfig(writeConfig(t, validConfig))
+	if err != nil {
+		t.Fatalf("valid config rejected: %v", err)
+	}
+	if cfg.Name != "test-runtime" || cfg.DataDir != "/var/lib/thinre" {
+		t.Fatalf("unexpected config: %+v", cfg)
+	}
+}
+
+func TestLoadConfigDefaults(t *testing.T) {
+	cfg, err := LoadConfig(writeConfig(t, `
+api_url: https://api.example.test
+opamp_url: wss://opamp.example.test
+integration_manifest: /etc/thinre/integrations/blackbox.yaml
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.DataDir != "/var/lib/thinre" {
+		t.Errorf("data_dir default = %q", cfg.DataDir)
+	}
+	if cfg.Name == "" {
+		t.Error("name should default to the hostname")
+	}
+}
+
+func TestLoadConfigRejects(t *testing.T) {
+	cases := []struct {
+		name, content, hint string
+	}{
+		{"missing api_url", strings.Replace(validConfig, "api_url: https://api.example.test", "", 1), "api_url"},
+		{"missing manifest", strings.Replace(validConfig, "integration_manifest: /etc/thinre/integrations/blackbox.yaml", "", 1), "integration_manifest"},
+		{"unknown field", validConfig + "\nopamp_urll: typo\n", "opamp_urll"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := LoadConfig(writeConfig(t, c.content))
+			if err == nil || !strings.Contains(err.Error(), c.hint) {
+				t.Fatalf("want error mentioning %q, got %v", c.hint, err)
+			}
+		})
+	}
+}
+
+func TestEnrollmentTokenEnvOverride(t *testing.T) {
+	t.Setenv("THINRE_ENROLLMENT_TOKEN", "from-env")
+	cfg, err := LoadConfig(writeConfig(t, validConfig+"enrollment_token: from-file\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.EnrollmentToken != "from-env" {
+		t.Fatalf("env override not applied: %q", cfg.EnrollmentToken)
+	}
+}
+
+func TestLayoutEnsure(t *testing.T) {
+	layout := NewLayout(t.TempDir())
+	if err := layout.Ensure(); err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{layout.Identity, layout.State, layout.Artifacts, layout.Staging, layout.Rollback} {
+		info, err := os.Stat(dir)
+		if err != nil || !info.IsDir() {
+			t.Errorf("missing layout dir %s: %v", dir, err)
+		}
+	}
+}
