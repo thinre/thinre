@@ -1,0 +1,5 @@
+# Shell scripts run inside Linux containers; CRLF line endings from a
+# Windows checkout would break their shebangs and here-docs. Force LF.
+*.sh text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
