@@ -19,7 +19,8 @@ import (
 
 	integrationspec "github.com/thinre/thinre/integration-spec"
 	"github.com/thinre/thinre/protocol"
-	"github.com/thinre/thinre/supervisor/hooks"
+	"github.com/thinre/thinre/supervisor"
+	"github.com/thinre/thinre/supervisor/reconcile"
 )
 
 // reportInterval paces periodic observed-state reports; each one also
@@ -34,11 +35,13 @@ type Params struct {
 	RuntimeID       string
 	SupervisorVersion string
 	Manifest        *integrationspec.Integration
+	Layout          supervisor.Layout
 }
 
-// Run connects and blocks until ctx is canceled. The desired-state
-// documents received here are logged only; reconciliation plugs into
-// OnMessage with milestone M3.
+// Run connects and blocks until ctx is canceled. Received desired-state
+// documents are handed to the reconciler through a latest-wins queue:
+// while an upgrade runs, newer documents replace any queued one, so the
+// reconciler always converges on the most recent desired state.
 func Run(ctx context.Context, p Params) error {
 	runtimeUID, err := uuid.Parse(p.RuntimeID)
 	if err != nil {
@@ -78,25 +81,67 @@ func Run(ctx context.Context, p Params) error {
 		return err
 	}
 
-	report := func(reason string) {
-		state := observe(ctx, p.Manifest)
-		data, err := json.Marshal(state)
+	// send delivers one observed-state document, retrying briefly when a
+	// previous custom message is still in flight — phase reports during an
+	// upgrade must not be silently lost.
+	send := func(ctx context.Context, st protocol.ObservedState) {
+		data, err := json.Marshal(st)
 		if err != nil {
 			p.Log.Error("marshal observed state", "err", err)
 			return
 		}
-		if _, err := c.SendCustomMessage(&protobufs.CustomMessage{
-			Capability: protocol.CustomCapability,
-			Type:       protocol.ObservedStateMessageType,
-			Data:       data,
-		}); err != nil {
-			// ErrCustomMessagePending: the previous report is still in
-			// flight; the next tick will carry the fresh state.
-			p.Log.Debug("observed-state report skipped", "reason", reason, "err", err)
-			return
+		for attempt := 0; attempt < 5; attempt++ {
+			_, err = c.SendCustomMessage(&protobufs.CustomMessage{
+				Capability: protocol.CustomCapability,
+				Type:       protocol.ObservedStateMessageType,
+				Data:       data,
+			})
+			if err == nil {
+				_ = c.SetHealth(&protobufs.ComponentHealth{Healthy: st.Health == protocol.HealthHealthy})
+				p.Log.Info("observed state reported", "version", st.Version, "health", st.Health, "status", st.Status)
+				return
+			}
+			select {
+			case <-time.After(300 * time.Millisecond):
+			case <-ctx.Done():
+				return
+			}
 		}
-		_ = c.SetHealth(&protobufs.ComponentHealth{Healthy: state.Health == protocol.HealthHealthy})
-		p.Log.Info("observed state reported", "reason", reason, "version", state.Version, "health", state.Health)
+		p.Log.Warn("observed-state report dropped", "err", err, "status", st.Status)
+	}
+
+	rec := reconcile.New(p.Log, p.Manifest, p.Layout, reconcile.Report(send))
+
+	// Latest-wins queue: a buffered channel of one where a newer document
+	// evicts an unconsumed older one.
+	docCh := make(chan protocol.DesiredState, 1)
+	submit := func(doc protocol.DesiredState) {
+		for {
+			select {
+			case docCh <- doc:
+				return
+			default:
+				select {
+				case <-docCh: // evict the stale document
+				default:
+				}
+			}
+		}
+	}
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case doc := <-docCh:
+				rec.Apply(ctx, doc)
+			}
+		}
+	}()
+
+	report := func(reason string) {
+		send(ctx, rec.Observe(ctx))
+		_ = reason
 	}
 
 	settings := types.StartSettings{
@@ -118,10 +163,22 @@ func Run(ctx context.Context, p Params) error {
 				if msg.RemoteConfig == nil {
 					return
 				}
-				// Reconciliation (milestone M3) consumes this document;
-				// for now receipt is logged and acknowledged.
 				body := msg.RemoteConfig.GetConfig().GetConfigMap()[protocol.RemoteConfigKey].GetBody()
-				p.Log.Info("desired state received", "bytes", len(body))
+				var doc protocol.DesiredState
+				if err := json.Unmarshal(body, &doc); err != nil {
+					p.Log.Error("malformed desired state", "err", err)
+					_ = c.SetRemoteConfigStatus(&protobufs.RemoteConfigStatus{
+						LastRemoteConfigHash: msg.RemoteConfig.GetConfigHash(),
+						Status:               protobufs.RemoteConfigStatuses_RemoteConfigStatuses_FAILED,
+						ErrorMessage:         "malformed desired-state document",
+					})
+					return
+				}
+				p.Log.Info("desired state received", "generation", doc.Generation)
+				submit(doc)
+				// APPLIED here means "accepted for reconciliation"; the
+				// truthful application outcome travels in observed-state
+				// reports, which carry generation, phase, and health.
 				_ = c.SetRemoteConfigStatus(&protobufs.RemoteConfigStatus{
 					LastRemoteConfigHash: msg.RemoteConfig.GetConfigHash(),
 					Status:               protobufs.RemoteConfigStatuses_RemoteConfigStatuses_APPLIED,
@@ -146,30 +203,6 @@ func Run(ctx context.Context, p Params) error {
 			return c.Stop(stopCtx)
 		}
 	}
-}
-
-// observe builds the current observed state from the integration's version
-// and health hooks. Hook failures degrade the report rather than aborting
-// it: an unreachable version hook is itself a signal the cloud should see.
-func observe(ctx context.Context, manifest *integrationspec.Integration) protocol.ObservedState {
-	state := protocol.ObservedState{
-		SchemaVersion: protocol.SchemaVersion,
-		Health:        protocol.HealthUnknown,
-		Status:        protocol.StatusIdle,
-	}
-	if manifest.Package.Version != nil {
-		if out, err := hooks.Run(ctx, manifest.Package.Version); err == nil {
-			state.Version = out
-		} else {
-			state.Message = "version hook: " + err.Error()
-		}
-	}
-	if _, err := hooks.Run(ctx, manifest.Health.Check); err == nil {
-		state.Health = protocol.HealthHealthy
-	} else {
-		state.Health = protocol.HealthUnhealthy
-	}
-	return state
 }
 
 // strAttr builds an OpAMP string attribute.

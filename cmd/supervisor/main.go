@@ -108,6 +108,7 @@ func run(log *slog.Logger, configPath string) error {
 	}
 
 	err = opamp.Run(ctx, opamp.Params{
+		Layout:            layout,
 		Log:               log,
 		OpAMPURL:          cfg.OpAMPURL,
 		MachineToken:      id.MachineToken,
