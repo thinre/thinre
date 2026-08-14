@@ -12,9 +12,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	integrationspec "github.com/thinre/thinre/integration-spec"
+	"github.com/thinre/thinre/protocol"
 	"github.com/thinre/thinre/supervisor"
+	"github.com/thinre/thinre/supervisor/enroll"
 	"github.com/thinre/thinre/supervisor/identity"
 )
 
@@ -71,17 +74,39 @@ func run(log *slog.Logger, configPath string) error {
 		"data_dir", cfg.DataDir,
 		"enrolled", id != nil,
 	)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	if id == nil {
-		// Enrollment (milestone M2 step 2.4) consumes cfg.EnrollmentToken
-		// here; until then an unenrolled supervisor just says so.
-		log.Info("not enrolled; waiting", "api_url", cfg.APIURL)
+		if cfg.EnrollmentToken == "" {
+			return fmt.Errorf("not enrolled and no enrollment token configured (set enrollment_token or THINRE_ENROLLMENT_TOKEN)")
+		}
+		resp, err := enroll.Do(ctx, cfg.APIURL, protocol.EnrollRequest{
+			Token:             cfg.EnrollmentToken,
+			Name:              cfg.Name,
+			IntegrationName:   manifest.Metadata.Name,
+			SupervisorVersion: version,
+		})
+		if err != nil {
+			return err
+		}
+		newID := identity.Identity{
+			RuntimeID:      resp.RuntimeID,
+			OrganizationID: resp.OrganizationID,
+			MachineToken:   resp.MachineToken,
+			EnrolledAt:     time.Now().UTC(),
+		}
+		if err := identity.Save(layout.Identity, newID); err != nil {
+			return err
+		}
+		id = &newID
+		log.Info("enrolled", "runtime_id", id.RuntimeID, "organization_id", id.OrganizationID)
 	} else {
 		log.Info("identity loaded", "runtime_id", id.RuntimeID, "organization_id", id.OrganizationID)
 	}
 
 	// The OpAMP connection loop (step 2.5) replaces this wait.
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	<-ctx.Done()
 	log.Info("shutting down")
 	return nil
