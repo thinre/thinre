@@ -10,11 +10,13 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	integrationspec "github.com/thinre/thinre/integration-spec"
 	"github.com/thinre/thinre/protocol"
 	"github.com/thinre/thinre/supervisor"
+	"github.com/thinre/thinre/supervisor/state"
 )
 
 // The reconciler executes POSIX hooks; these tests run everywhere except
@@ -165,7 +167,7 @@ func TestApplyVerificationFailure(t *testing.T) {
 	}
 }
 
-func TestApplyUpgradeHookFailure(t *testing.T) {
+func TestApplyUpgradeHookFailureWithoutRollback(t *testing.T) {
 	manifest, _ := fixture(t, true)
 	url, sha := artifactServer(t, "2.0.0\n")
 	rec, reports := testReconciler(t, manifest)
@@ -179,5 +181,102 @@ func TestApplyUpgradeHookFailure(t *testing.T) {
 	final := (*reports)[len(*reports)-1]
 	if final.Status != protocol.StatusFailed || final.Version != "1.0.0" {
 		t.Fatalf("final report = %+v, want failed at 1.0.0", final)
+	}
+	if !strings.Contains(final.Message, "no rollback hook defined") {
+		t.Fatalf("message should explain the missing rollback hook: %q", final.Message)
+	}
+}
+
+// withRollback extends the fixture with a rollback hook restoring 1.0.0.
+func withRollback(t *testing.T, manifest *integrationspec.Integration, app string) {
+	t.Helper()
+	path := filepath.Join(app, "rollback.sh")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\nprintf '1.0.0\\n' > \""+app+"/VERSION\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	manifest.Package.Rollback = &integrationspec.Hook{Executable: path}
+}
+
+func TestApplyUpgradeHookFailureRollsBack(t *testing.T) {
+	manifest, app := fixture(t, true)
+	withRollback(t, manifest, app)
+	url, sha := artifactServer(t, "2.0.0\n")
+	rec, reports := testReconciler(t, manifest)
+
+	rec.Apply(context.Background(), protocol.DesiredState{
+		SchemaVersion: protocol.SchemaVersion,
+		Generation:    7,
+		Package:       &protocol.DesiredPackage{Version: "2.0.0", Artifact: protocol.Artifact{URL: url, SHA256: sha}},
+	})
+
+	final := (*reports)[len(*reports)-1]
+	if final.Status != protocol.StatusRolledBack || final.Version != "1.0.0" || final.Health != protocol.HealthHealthy {
+		t.Fatalf("final report = %+v, want rolled-back at healthy 1.0.0", final)
+	}
+	if final.Generation != 7 {
+		t.Fatalf("rollback report must carry the desired generation, got %d", final.Generation)
+	}
+}
+
+func TestApplyHealthFailureRollsBack(t *testing.T) {
+	manifest, app := fixture(t, false)
+	withRollback(t, manifest, app)
+	// Health fails exactly when 2.0.0 is installed: the upgrade itself
+	// succeeds, then the post-upgrade gate triggers the rollback.
+	health := filepath.Join(app, "health2.sh")
+	if err := os.WriteFile(health, []byte("#!/bin/sh\ntest \"$(cat \""+app+"/VERSION\")\" != \"2.0.0\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	manifest.Health.Check = &integrationspec.Hook{Executable: health}
+
+	url, sha := artifactServer(t, "2.0.0\n")
+	rec, reports := testReconciler(t, manifest)
+	rec.Apply(context.Background(), protocol.DesiredState{
+		SchemaVersion: protocol.SchemaVersion,
+		Generation:    8,
+		Package:       &protocol.DesiredPackage{Version: "2.0.0", Artifact: protocol.Artifact{URL: url, SHA256: sha}},
+	})
+
+	final := (*reports)[len(*reports)-1]
+	if final.Status != protocol.StatusRolledBack || final.Version != "1.0.0" {
+		t.Fatalf("final report = %+v, want rolled-back at 1.0.0", final)
+	}
+	if !strings.Contains(final.Message, "health check failed") {
+		t.Fatalf("message should carry the rollback reason: %q", final.Message)
+	}
+	// The rolled-back app is healthy again.
+	if final.Health != protocol.HealthHealthy {
+		t.Fatalf("health after rollback = %s", final.Health)
+	}
+}
+
+func TestApplyResumesAfterCrash(t *testing.T) {
+	manifest, _ := fixture(t, false)
+	url, sha := artifactServer(t, "2.0.0\n")
+	rec, reports := testReconciler(t, manifest)
+
+	// Simulate a supervisor that died mid-upgrade: the in-flight marker
+	// is on disk. Re-application must recover deterministically.
+	if err := state.Save(rec.layout.State, state.Local{
+		ObservedVersion: "1.0.0",
+		InFlight:        &state.Operation{Generation: 9, Version: "2.0.0", Phase: protocol.StatusUpgrading},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	rec.Apply(context.Background(), protocol.DesiredState{
+		SchemaVersion: protocol.SchemaVersion,
+		Generation:    9,
+		Package:       &protocol.DesiredPackage{Version: "2.0.0", Artifact: protocol.Artifact{URL: url, SHA256: sha}},
+	})
+
+	final := (*reports)[len(*reports)-1]
+	if final.Status != protocol.StatusInstalled || final.Version != "2.0.0" {
+		t.Fatalf("recovery did not converge: %+v", final)
+	}
+	// The in-flight marker is gone after successful recovery.
+	local, err := state.Load(rec.layout.State)
+	if err != nil || local.InFlight != nil {
+		t.Fatalf("in-flight marker not cleared: %+v (%v)", local.InFlight, err)
 	}
 }

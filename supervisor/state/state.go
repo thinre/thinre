@@ -28,9 +28,15 @@ type Operation struct {
 
 // Local is the persisted reconciliation state.
 type Local struct {
-	ObservedVersion string     `json:"observed_version,omitempty"`
-	LastGeneration  int64      `json:"last_generation"`
-	InFlight        *Operation `json:"in_flight,omitempty"`
+	ObservedVersion string `json:"observed_version,omitempty"`
+	LastGeneration  int64  `json:"last_generation"`
+	// LastStatus/LastMessage remember the outcome of the last completed
+	// operation so periodic reports keep showing it — a terminal
+	// "failed" or "rolled-back" must not be erased by the next idle
+	// heartbeat.
+	LastStatus  string     `json:"last_status,omitempty"`
+	LastMessage string     `json:"last_message,omitempty"`
+	InFlight    *Operation `json:"in_flight,omitempty"`
 }
 
 // Load reads the state from dir; a missing file is an empty state.

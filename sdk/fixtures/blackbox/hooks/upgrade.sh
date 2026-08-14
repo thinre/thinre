@@ -14,6 +14,12 @@ if [ -e "$APP_DIR/fail-upgrade" ]; then
     exit 1
 fi
 
+# Crash-recovery testing: `touch /opt/blackbox/slow-upgrade` stretches the
+# upgrade so a test can kill the supervisor mid-operation.
+if [ -e "$APP_DIR/slow-upgrade" ]; then
+    sleep 10
+fi
+
 # Keep the previous version as the rollback candidate. Hooks and config are
 # part of the installation, not the versioned app payload, so only VERSION
 # and payload files are replaced.

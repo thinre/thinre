@@ -54,6 +54,12 @@ func (r *Reconciler) Observe(ctx context.Context) protocol.ObservedState {
 		Generation:    local.LastGeneration,
 		Health:        protocol.HealthUnknown,
 		Status:        protocol.StatusIdle,
+		Message:       local.LastMessage,
+	}
+	// Keep showing the last completed outcome; "idle" is only for a
+	// supervisor that has not applied anything yet.
+	if local.LastStatus != "" {
+		st.Status = local.LastStatus
 	}
 	st.Version = r.currentVersion(ctx, local)
 	if _, err := hooks.Run(ctx, r.manifest.Health.Check); err == nil {
@@ -78,6 +84,15 @@ func (r *Reconciler) Apply(ctx context.Context, doc protocol.DesiredState) {
 	if err != nil {
 		r.log.Error("load reconcile state", "err", err)
 	}
+	if local.InFlight != nil {
+		// A previous run died mid-operation (RT-SUP-012). Recovery is
+		// re-application: downloads are content-addressed (free resume)
+		// and the upgrade hook re-runs against the verified artifact.
+		r.log.Warn("resuming after interrupted operation",
+			"phase", local.InFlight.Phase, "version", local.InFlight.Version)
+		local.InFlight = nil
+		r.save(local)
+	}
 
 	current := r.currentVersion(ctx, local)
 	if current == desired {
@@ -85,6 +100,8 @@ func (r *Reconciler) Apply(ctx context.Context, doc protocol.DesiredState) {
 		// desired-state replays are recognizable, and say so.
 		local.ObservedVersion = current
 		local.LastGeneration = doc.Generation
+		local.LastStatus = protocol.StatusInstalled
+		local.LastMessage = ""
 		local.InFlight = nil
 		r.save(local)
 		r.reportPhase(ctx, doc, current, protocol.StatusInstalled, "")
@@ -97,6 +114,10 @@ func (r *Reconciler) Apply(ctx context.Context, doc protocol.DesiredState) {
 	path, err := artifacts.Fetch(ctx, doc.Package.Artifact.URL, doc.Package.Artifact.SHA256, r.layout.Staging, r.layout.Artifacts)
 	if err != nil {
 		r.log.Error("artifact fetch", "err", err)
+		local.LastGeneration = doc.Generation
+		local.LastStatus = protocol.StatusFailed
+		local.LastMessage = err.Error()
+		r.save(local)
 		r.reportPhase(ctx, doc, current, protocol.StatusFailed, err.Error())
 		return
 	}
@@ -114,9 +135,7 @@ func (r *Reconciler) Apply(ctx context.Context, doc protocol.DesiredState) {
 
 	if _, err := hooks.Run(ctx, substitute(r.manifest.Package.Upgrade, artifactPathVar, path)); err != nil {
 		r.log.Error("upgrade hook", "err", err)
-		local.InFlight = nil
-		r.save(local)
-		r.reportPhase(ctx, doc, current, protocol.StatusFailed, err.Error())
+		r.rollback(ctx, doc, &local, "upgrade hook failed: "+err.Error())
 		return
 	}
 
@@ -128,21 +147,55 @@ func (r *Reconciler) Apply(ctx context.Context, doc protocol.DesiredState) {
 		healthy = false
 	}
 
-	local.ObservedVersion = installed
-	local.LastGeneration = doc.Generation
-	local.InFlight = nil
-	r.save(local)
-
 	switch {
 	case installed != desired:
-		r.reportPhase(ctx, doc, installed, protocol.StatusFailed,
+		r.rollback(ctx, doc, &local,
 			fmt.Sprintf("upgrade hook succeeded but installed version is %q, expected %q", installed, desired))
 	case !healthy:
-		r.reportPhase(ctx, doc, installed, protocol.StatusFailed, "health check failed after upgrade")
+		r.rollback(ctx, doc, &local, "health check failed after upgrade")
 	default:
+		local.ObservedVersion = installed
+		local.LastGeneration = doc.Generation
+		local.LastStatus = protocol.StatusInstalled
+		local.LastMessage = ""
+		local.InFlight = nil
+		r.save(local)
 		r.log.Info("reconciled", "version", installed, "generation", doc.Generation)
 		r.reportPhase(ctx, doc, installed, protocol.StatusInstalled, "")
 	}
+}
+
+// rollback restores the previous version after a failed upgrade
+// (RT-SUP-009): run the rollback hook if the integration defines one,
+// verify the outcome, and report rolled-back — or failed when no rollback
+// exists or the rollback itself fails. The desired-state generation is
+// recorded either way, so the cloud can tell this outcome belongs to the
+// current desired state.
+func (r *Reconciler) rollback(ctx context.Context, doc protocol.DesiredState, local *state.Local, reason string) {
+	finish := func(status, version, message string) {
+		local.ObservedVersion = version
+		local.LastGeneration = doc.Generation
+		local.LastStatus = status
+		local.LastMessage = message
+		local.InFlight = nil
+		r.save(*local)
+		r.reportPhase(ctx, doc, version, status, message)
+	}
+
+	if r.manifest.Package.Rollback == nil {
+		finish(protocol.StatusFailed, r.currentVersion(ctx, *local), reason+" (no rollback hook defined)")
+		return
+	}
+
+	r.log.Warn("rolling back", "reason", reason)
+	if _, err := hooks.Run(ctx, r.manifest.Package.Rollback); err != nil {
+		r.log.Error("rollback hook", "err", err)
+		finish(protocol.StatusFailed, r.currentVersion(ctx, *local), reason+"; rollback also failed: "+err.Error())
+		return
+	}
+	restored := r.currentVersion(ctx, *local)
+	r.log.Info("rolled back", "version", restored, "reason", reason)
+	finish(protocol.StatusRolledBack, restored, reason)
 }
 
 // currentVersion asks the integration's version hook; without one (or on
@@ -170,7 +223,7 @@ func (r *Reconciler) reportPhase(ctx context.Context, doc protocol.DesiredState,
 		Status:        status,
 		Message:       message,
 	}
-	if status == protocol.StatusInstalled || status == protocol.StatusFailed {
+	if status == protocol.StatusInstalled || status == protocol.StatusFailed || status == protocol.StatusRolledBack {
 		if _, err := hooks.Run(ctx, r.manifest.Health.Check); err == nil {
 			st.Health = protocol.HealthHealthy
 		} else {
