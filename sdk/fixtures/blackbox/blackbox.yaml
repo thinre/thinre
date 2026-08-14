@@ -1,0 +1,40 @@
+# Integration manifest for the blackbox fixture application.
+# This is both a working example of the Integration v1 contract and the
+# integration used by Thinre's end-to-end tests.
+apiVersion: thinre.io/v1
+kind: Integration
+
+metadata:
+  name: blackbox
+
+package:
+  upgrade:
+    executable: /opt/blackbox/hooks/upgrade.sh
+    args: ["{{ artifact.path }}"]
+    timeout: 60s
+
+  rollback:
+    executable: /opt/blackbox/hooks/rollback.sh
+    timeout: 60s
+
+  version:
+    executable: /opt/blackbox/hooks/version.sh
+    timeout: 10s
+
+configuration:
+  files:
+    - id: main
+      destination: /opt/blackbox/config/app.conf
+
+  validate:
+    executable: /opt/blackbox/hooks/validate-config.sh
+    timeout: 10s
+
+  apply:
+    executable: /opt/blackbox/hooks/apply-config.sh
+    timeout: 10s
+
+health:
+  check:
+    executable: /opt/blackbox/hooks/health.sh
+    timeout: 10s
