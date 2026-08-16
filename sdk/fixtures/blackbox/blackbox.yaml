@@ -28,6 +28,7 @@ configuration:
 
   validate:
     executable: /opt/blackbox/hooks/validate-config.sh
+    args: ["{{ bundle.path }}"]
     timeout: 10s
 
   apply:

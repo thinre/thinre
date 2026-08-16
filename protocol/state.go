@@ -20,7 +20,9 @@ const ObservedStateMessageType = "thinre.observed-state"
 // announce to negotiate Thinre's message exchange.
 const CustomCapability = "io.thinre.supervisor"
 
-// DesiredState is what the cloud wants the runtime to become.
+// DesiredState is what the cloud wants the runtime to become. Package and
+// bundle travel in ONE document on purpose: the bundle-consistency rule
+// (architecture §10) needs version and configuration to be atomic.
 type DesiredState struct {
 	SchemaVersion string `json:"schema_version"`
 	// Generation increments on every desired-state mutation; the
@@ -29,10 +31,30 @@ type DesiredState struct {
 	Generation int64 `json:"generation"`
 	// Package is the desired software version, when one is set.
 	Package *DesiredPackage `json:"package,omitempty"`
-	// ConfigRevision is the desired configuration bundle revision.
-	// Bundles arrive with milestone M4; the field exists now so adding
-	// them does not change the document shape.
-	ConfigRevision *int64 `json:"config_revision,omitempty"`
+	// Bundle is the desired configuration bundle, when one is set. File
+	// contents are embedded: configuration is small, and embedding keeps
+	// the complete revision atomic — the Supervisor never fetches parts.
+	Bundle *DesiredBundle `json:"bundle,omitempty"`
+}
+
+// DesiredBundle is one complete configuration revision (RT-CONFIG-003).
+type DesiredBundle struct {
+	Revision int64 `json:"revision"`
+	// ManifestHash is the SHA-256 over the sorted (file id, sha256) pairs:
+	// the identity of the complete set.
+	ManifestHash string       `json:"manifest_hash"`
+	Files        []BundleFile `json:"files"`
+}
+
+// BundleFile carries one configuration file. Content is raw bytes
+// (base64 on the wire via JSON encoding).
+type BundleFile struct {
+	// ID is the stable file identifier from the Integration manifest.
+	ID string `json:"id"`
+	// Destination is the absolute path the file belongs at.
+	Destination string `json:"destination"`
+	SHA256      string `json:"sha256"`
+	Content     []byte `json:"content"`
 }
 
 // DesiredPackage names a version and where to get it.
@@ -58,7 +80,8 @@ const (
 	HealthUnknown   = "unknown"
 )
 
-// Package status values a Supervisor may report (RT-OPAMP-006).
+// Package status values a Supervisor may report (RT-OPAMP-006), plus the
+// configuration phases (RT-OPAMP-007).
 const (
 	StatusIdle        = "idle"
 	StatusDownloading = "downloading"
@@ -67,6 +90,8 @@ const (
 	StatusInstalled   = "installed"
 	StatusFailed      = "failed"
 	StatusRolledBack  = "rolled-back"
+	StatusStaging     = "staging"
+	StatusApplying    = "applying"
 )
 
 // ObservedState is what the Supervisor reports as currently true.
