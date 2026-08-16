@@ -33,6 +33,27 @@ jobs:
         with:
           version: latest
 
+  # The public documentation site must always build; broken internal links
+  # fail the build (onBrokenLinks: throw). Deployment happens separately in
+  # docs.yml on merge to main.
+  docs:
+    name: docs
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Build
+        run: npm run build
+
   # Nothing in the open-source repository — code or documentation — may
   # reference the closed-source repository by name. The grep pattern below is
   # the only permitted occurrence of that name in this repository.
