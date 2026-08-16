@@ -10,9 +10,19 @@ Any change to a workflow, Makefile target, or this pipeline behavior must update
 |---|---|
 | `build-test` | `go build ./...` then `go test ./...` |
 | `lint` | `golangci-lint run` (config: `.golangci.yml`, default linter set) |
+| `docs` | Builds the public documentation site (`website/`, Docusaurus). Broken internal links fail the build (`onBrokenLinks: throw`). |
 | `boundary` | Greps Go sources, module files, and Markdown docs (`*.go`, `go.mod`, `go.sum`, `*.md`) for the closed-source repository's name; any hit fails the build. This enforces the one-way dependency rule: nothing here may reference the closed-source repository. |
 
-All three jobs are required status checks on `main` (branch protection). Pull requests merge with **merge commits only** — squash and rebase merging are disabled at the repository level.
+All jobs are required status checks on `main` (branch protection). Pull requests merge with **merge commits only** — squash and rebase merging are disabled at the repository level.
+
+## `.github/workflows/docs.yml` — Docs
+
+**Trigger:** pushes to `main` that touch `website/` (or the workflow itself).
+
+Builds the Docusaurus site and deploys it to GitHub Pages at
+<https://thinre.github.io/thinre/> via `actions/deploy-pages` (Pages is
+configured with the "GitHub Actions" build type). Deploys are serialized;
+a newer push cancels a queued one.
 
 ## `.github/workflows/release.yml` — Release
 
