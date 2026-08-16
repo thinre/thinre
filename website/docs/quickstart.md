@@ -82,13 +82,18 @@ machine. The name in `metadata.name` links the two at enrollment.
 ```yaml title="/etc/thinre/supervisor.yaml"
 api_url: https://api.<your-workspace>
 opamp_url: wss://opamp.<your-workspace>/v1/opamp
-integration_manifest: /etc/thinre/integrations/myapp.yaml
+integrations:
+  - manifest: /etc/thinre/integrations/myapp.yaml
 
 # Optional: tags shown in the console (or via THINRE_LABELS env).
 labels:
   env: production
   dc: paris
 ```
+
+One supervisor can manage several applications on the same host — add
+more `integrations` entries and each becomes its own runtime in the
+console (see [supervisor configuration](supervisor-configuration)).
 
 ## 5. Enroll and start
 

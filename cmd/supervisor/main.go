@@ -42,81 +42,156 @@ func main() {
 	}
 }
 
+// app is one managed application: its manifest, its own data-dir layout,
+// and (once enrolled) its own runtime identity.
+type app struct {
+	name     string // runtime display name
+	manifest *integrationspec.Integration
+	layout   supervisor.Layout
+	id       *identity.Identity
+}
+
 func run(log *slog.Logger, configPath string) error {
 	cfg, err := supervisor.LoadConfig(configPath)
 	if err != nil {
 		return err
 	}
 
-	layout := supervisor.NewLayout(cfg.DataDir)
-	if err := layout.Ensure(); err != nil {
-		return err
+	// Fail fast on any broken integration manifest: a Supervisor that
+	// cannot execute its lifecycle contract has nothing useful to do.
+	apps := make([]*app, 0, len(cfg.Integrations))
+	seen := map[string]bool{}
+	for _, ref := range cfg.Integrations {
+		manifestData, err := os.ReadFile(ref.Manifest)
+		if err != nil {
+			return fmt.Errorf("read integration manifest: %w", err)
+		}
+		manifest, err := integrationspec.Parse(manifestData)
+		if err != nil {
+			return err
+		}
+		appName := manifest.Metadata.Name
+		if seen[appName] {
+			return fmt.Errorf("integration %q is listed twice", appName)
+		}
+		seen[appName] = true
+
+		// Single-app hosts keep the plain host name; multi-app hosts
+		// qualify each runtime so names stay unique across the fleet.
+		name := ref.Name
+		if name == "" {
+			name = cfg.Name
+			if len(cfg.Integrations) > 1 {
+				name = cfg.Name + "/" + appName
+			}
+		}
+
+		layout := supervisor.NewAppLayout(cfg.DataDir, appName)
+		if err := layout.Ensure(); err != nil {
+			return err
+		}
+		id, err := identity.Load(layout.Identity)
+		if err != nil {
+			return err
+		}
+		apps = append(apps, &app{name: name, manifest: manifest, layout: layout, id: id})
 	}
 
-	// Fail fast on a broken integration manifest: a Supervisor that cannot
-	// execute its lifecycle contract has nothing useful to do.
-	manifestData, err := os.ReadFile(cfg.IntegrationManifest)
-	if err != nil {
-		return fmt.Errorf("read integration manifest: %w", err)
-	}
-	manifest, err := integrationspec.Parse(manifestData)
-	if err != nil {
-		return err
-	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	id, err := identity.Load(layout.Identity)
-	if err != nil {
+	if err := enrollMissing(ctx, log, cfg, apps); err != nil {
 		return err
 	}
 
 	log.Info("thinre-supervisor starting",
 		"version", version,
-		"integration", manifest.Metadata.Name,
+		"applications", len(apps),
 		"data_dir", cfg.DataDir,
-		"enrolled", id != nil,
 	)
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	if id == nil {
-		if cfg.EnrollmentToken == "" {
-			return fmt.Errorf("not enrolled and no enrollment token configured (set enrollment_token or THINRE_ENROLLMENT_TOKEN)")
-		}
-		resp, err := enroll.Do(ctx, cfg.APIURL, protocol.EnrollRequest{
-			Token:             cfg.EnrollmentToken,
-			Name:              cfg.Name,
-			IntegrationName:   manifest.Metadata.Name,
-			SupervisorVersion: version,
-		})
-		if err != nil {
-			return err
-		}
-		newID := identity.Identity{
-			RuntimeID:      resp.RuntimeID,
-			OrganizationID: resp.OrganizationID,
-			MachineToken:   resp.MachineToken,
-			EnrolledAt:     time.Now().UTC(),
-		}
-		if err := identity.Save(layout.Identity, newID); err != nil {
-			return err
-		}
-		id = &newID
-		log.Info("enrolled", "runtime_id", id.RuntimeID, "organization_id", id.OrganizationID)
-	} else {
-		log.Info("identity loaded", "runtime_id", id.RuntimeID, "organization_id", id.OrganizationID)
+	// One independent reconcile loop + OpAMP connection per application.
+	// The first loop to fail cancels the rest; the process exits so the
+	// service manager can restart everything together.
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	errCh := make(chan error, len(apps))
+	for _, a := range apps {
+		go func(a *app) {
+			appLog := log.With("integration", a.manifest.Metadata.Name)
+			err := opamp.Run(runCtx, opamp.Params{
+				Layout:            a.layout,
+				Log:               appLog,
+				OpAMPURL:          cfg.OpAMPURL,
+				MachineToken:      a.id.MachineToken,
+				RuntimeID:         a.id.RuntimeID,
+				SupervisorVersion: version,
+				Labels:            cfg.Labels,
+				Manifest:          a.manifest,
+			})
+			errCh <- err
+		}(a)
 	}
 
-	err = opamp.Run(ctx, opamp.Params{
-		Layout:            layout,
-		Log:               log,
-		OpAMPURL:          cfg.OpAMPURL,
-		MachineToken:      id.MachineToken,
-		RuntimeID:         id.RuntimeID,
-		SupervisorVersion: version,
-		Labels:            cfg.Labels,
-		Manifest:          manifest,
-	})
+	var firstErr error
+	for range apps {
+		if err := <-errCh; err != nil && firstErr == nil {
+			firstErr = err
+			cancel()
+		}
+	}
 	log.Info("shutting down")
-	return err
+	return firstErr
+}
+
+// enrollMissing exchanges the enrollment token for identities of every
+// not-yet-enrolled application — one API call, one single-use token,
+// however many applications the host runs.
+func enrollMissing(ctx context.Context, log *slog.Logger, cfg *supervisor.Config, apps []*app) error {
+	missing := make([]*app, 0, len(apps))
+	req := protocol.EnrollRequest{Token: cfg.EnrollmentToken, SupervisorVersion: version}
+	for _, a := range apps {
+		if a.id != nil {
+			log.Info("identity loaded", "integration", a.manifest.Metadata.Name, "runtime_id", a.id.RuntimeID)
+			continue
+		}
+		missing = append(missing, a)
+		req.Integrations = append(req.Integrations, protocol.EnrollIntegration{
+			IntegrationName: a.manifest.Metadata.Name,
+			Name:            a.name,
+		})
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	if cfg.EnrollmentToken == "" {
+		return fmt.Errorf("not enrolled and no enrollment token configured (set enrollment_token or THINRE_ENROLLMENT_TOKEN)")
+	}
+
+	resp, err := enroll.Do(ctx, cfg.APIURL, req)
+	if err != nil {
+		return err
+	}
+	byIntegration := make(map[string]protocol.EnrolledRuntime, len(resp.Runtimes))
+	for _, rt := range resp.Runtimes {
+		byIntegration[rt.IntegrationName] = rt
+	}
+	for _, a := range missing {
+		rt, ok := byIntegration[a.manifest.Metadata.Name]
+		if !ok {
+			return fmt.Errorf("enrollment response is missing integration %q", a.manifest.Metadata.Name)
+		}
+		newID := identity.Identity{
+			RuntimeID:      rt.RuntimeID,
+			OrganizationID: resp.OrganizationID,
+			MachineToken:   rt.MachineToken,
+			EnrolledAt:     time.Now().UTC(),
+		}
+		if err := identity.Save(a.layout.Identity, newID); err != nil {
+			return err
+		}
+		a.id = &newID
+		log.Info("enrolled", "integration", a.manifest.Metadata.Name, "runtime_id", rt.RuntimeID, "organization_id", resp.OrganizationID)
+	}
+	return nil
 }

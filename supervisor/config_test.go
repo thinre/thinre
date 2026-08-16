@@ -19,7 +19,8 @@ func writeConfig(t *testing.T, content string) string {
 const validConfig = `
 api_url: https://api.example.test
 opamp_url: wss://opamp.example.test
-integration_manifest: /etc/thinre/integrations/blackbox.yaml
+integrations:
+  - manifest: /etc/thinre/integrations/blackbox.yaml
 data_dir: /var/lib/thinre
 name: test-runtime
 `
@@ -32,13 +33,34 @@ func TestLoadConfig(t *testing.T) {
 	if cfg.Name != "test-runtime" || cfg.DataDir != "/var/lib/thinre" {
 		t.Fatalf("unexpected config: %+v", cfg)
 	}
+	if len(cfg.Integrations) != 1 || cfg.Integrations[0].Manifest != "/etc/thinre/integrations/blackbox.yaml" {
+		t.Fatalf("unexpected integrations: %+v", cfg.Integrations)
+	}
+}
+
+func TestLoadConfigMultipleIntegrations(t *testing.T) {
+	cfg, err := LoadConfig(writeConfig(t, `
+api_url: https://api.example.test
+opamp_url: wss://opamp.example.test
+integrations:
+  - manifest: /etc/thinre/integrations/app-a.yaml
+  - manifest: /etc/thinre/integrations/app-b.yaml
+    name: b-custom
+`))
+	if err != nil {
+		t.Fatalf("multi-integration config rejected: %v", err)
+	}
+	if len(cfg.Integrations) != 2 || cfg.Integrations[1].Name != "b-custom" {
+		t.Fatalf("unexpected integrations: %+v", cfg.Integrations)
+	}
 }
 
 func TestLoadConfigDefaults(t *testing.T) {
 	cfg, err := LoadConfig(writeConfig(t, `
 api_url: https://api.example.test
 opamp_url: wss://opamp.example.test
-integration_manifest: /etc/thinre/integrations/blackbox.yaml
+integrations:
+  - manifest: /etc/thinre/integrations/blackbox.yaml
 `))
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +78,9 @@ func TestLoadConfigRejects(t *testing.T) {
 		name, content, hint string
 	}{
 		{"missing api_url", strings.Replace(validConfig, "api_url: https://api.example.test", "", 1), "api_url"},
-		{"missing manifest", strings.Replace(validConfig, "integration_manifest: /etc/thinre/integrations/blackbox.yaml", "", 1), "integration_manifest"},
+		{"missing integrations", strings.Replace(validConfig, "integrations:\n  - manifest: /etc/thinre/integrations/blackbox.yaml", "", 1), "integrations"},
+		{"entry without manifest", strings.Replace(validConfig, "- manifest: /etc/thinre/integrations/blackbox.yaml", "- name: only-a-name", 1), "manifest is required"},
+		{"removed singular field", validConfig + "\nintegration_manifest: /etc/thinre/x.yaml\n", "integration_manifest"},
 		{"unknown field", validConfig + "\nopamp_urll: typo\n", "opamp_urll"},
 	}
 	for _, c := range cases {

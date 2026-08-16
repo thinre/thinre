@@ -25,9 +25,10 @@ type Config struct {
 	// THINRE_ENROLLMENT_TOKEN environment variable overrides it so
 	// tokens can be injected without editing the file.
 	EnrollmentToken string `yaml:"enrollment_token,omitempty"`
-	// IntegrationManifest is the path of the Integration v1 manifest
-	// describing the managed software.
-	IntegrationManifest string `yaml:"integration_manifest"`
+	// Integrations lists the applications this Supervisor manages —
+	// each entry gets its own runtime identity, reconcile loop, and
+	// state directory. At least one entry is required.
+	Integrations []IntegrationRef `yaml:"integrations"`
 	// DataDir is the Supervisor's writable state directory.
 	DataDir string `yaml:"data_dir,omitempty"`
 	// Name is the runtime display name; defaults to the hostname.
@@ -37,6 +38,16 @@ type Config struct {
 	// THINRE_LABELS environment variable ("key=value,key=value") merges
 	// over the file's labels so containers can inject them.
 	Labels map[string]string `yaml:"labels,omitempty"`
+}
+
+// IntegrationRef points at one managed application.
+type IntegrationRef struct {
+	// Manifest is the path of the Integration v1 manifest.
+	Manifest string `yaml:"manifest"`
+	// Name overrides the runtime display name for this application.
+	// Default: the host name for a single-integration Supervisor,
+	// "<host name>/<integration name>" when there are several.
+	Name string `yaml:"name,omitempty"`
 }
 
 // LoadConfig reads and validates the configuration file. Unknown fields are
@@ -83,8 +94,13 @@ func LoadConfig(path string) (*Config, error) {
 	if cfg.APIURL == "" || cfg.OpAMPURL == "" {
 		return nil, fmt.Errorf("config %s: api_url and opamp_url are required", path)
 	}
-	if cfg.IntegrationManifest == "" {
-		return nil, fmt.Errorf("config %s: integration_manifest is required", path)
+	if len(cfg.Integrations) == 0 {
+		return nil, fmt.Errorf("config %s: at least one integrations entry is required", path)
+	}
+	for i, ref := range cfg.Integrations {
+		if ref.Manifest == "" {
+			return nil, fmt.Errorf("config %s: integrations[%d]: manifest is required", path, i)
+		}
 	}
 	return &cfg, nil
 }

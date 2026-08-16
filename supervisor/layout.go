@@ -20,6 +20,15 @@ type Layout struct {
 	Rollback string
 }
 
+// NewAppLayout maps one application's layout under the data dir: every
+// managed application keeps its identity, state, artifacts, and rollback
+// data in its own subdirectory so applications on the same host can never
+// interfere with each other. The app name comes from the integration
+// manifest, whose validation restricts it to path-safe characters.
+func NewAppLayout(dataDir, app string) Layout {
+	return NewLayout(filepath.Join(dataDir, app))
+}
+
 // NewLayout maps the layout under dataDir.
 func NewLayout(dataDir string) Layout {
 	return Layout{
