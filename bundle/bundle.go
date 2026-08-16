@@ -21,7 +21,8 @@ func ManifestHash(fileSHAs map[string]string) string {
 
 	h := sha256.New()
 	for _, id := range ids {
-		fmt.Fprintf(h, "%s:%s\n", id, fileSHAs[id])
+		// hash.Hash writes never fail; errcheck wants that made explicit.
+		_, _ = fmt.Fprintf(h, "%s:%s\n", id, fileSHAs[id])
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }
