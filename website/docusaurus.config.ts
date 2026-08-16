@@ -9,7 +9,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
   title: 'Thinre',
   tagline: 'Universal lifecycle control plane for black-box software',
-  favicon: 'img/favicon.ico',
+  favicon: 'img/favicon.png',
 
   future: {
     v4: true,
@@ -49,6 +49,10 @@ const config: Config = {
   themeConfig: {
     navbar: {
       title: 'Thinre',
+      logo: {
+        alt: 'Thinre',
+        src: 'img/thinre-icon.svg',
+      },
       items: [
         {
           type: 'docSidebar',
