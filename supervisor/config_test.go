@@ -92,3 +92,31 @@ func TestLayoutEnsure(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadConfigLabels(t *testing.T) {
+	path := writeConfig(t, validConfig+`
+labels:
+  env: staging
+  rack: r1
+`)
+	// The environment variable merges over (and can override) the file.
+	t.Setenv("THINRE_LABELS", "rack=r7, dc=paris")
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("labels rejected: %v", err)
+	}
+	want := map[string]string{"env": "staging", "rack": "r7", "dc": "paris"}
+	if len(cfg.Labels) != len(want) {
+		t.Fatalf("unexpected labels: %+v", cfg.Labels)
+	}
+	for k, v := range want {
+		if cfg.Labels[k] != v {
+			t.Fatalf("label %s = %q, want %q (all: %+v)", k, cfg.Labels[k], v, cfg.Labels)
+		}
+	}
+
+	t.Setenv("THINRE_LABELS", "notapair")
+	if _, err := LoadConfig(path); err == nil {
+		t.Fatal("malformed THINRE_LABELS accepted")
+	}
+}

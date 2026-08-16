@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -31,6 +32,11 @@ type Config struct {
 	DataDir string `yaml:"data_dir,omitempty"`
 	// Name is the runtime display name; defaults to the hostname.
 	Name string `yaml:"name,omitempty"`
+	// Labels are operator-defined tags (environment, datacenter, rack …)
+	// reported to the cloud with the host identification. The
+	// THINRE_LABELS environment variable ("key=value,key=value") merges
+	// over the file's labels so containers can inject them.
+	Labels map[string]string `yaml:"labels,omitempty"`
 }
 
 // LoadConfig reads and validates the configuration file. Unknown fields are
@@ -50,6 +56,18 @@ func LoadConfig(path string) (*Config, error) {
 
 	if env := os.Getenv("THINRE_ENROLLMENT_TOKEN"); env != "" {
 		cfg.EnrollmentToken = env
+	}
+	if env := os.Getenv("THINRE_LABELS"); env != "" {
+		if cfg.Labels == nil {
+			cfg.Labels = make(map[string]string)
+		}
+		for _, pair := range strings.Split(env, ",") {
+			key, value, ok := strings.Cut(strings.TrimSpace(pair), "=")
+			if !ok || key == "" {
+				return nil, fmt.Errorf("THINRE_LABELS: %q is not key=value", pair)
+			}
+			cfg.Labels[key] = value
+		}
 	}
 	if cfg.DataDir == "" {
 		cfg.DataDir = "/var/lib/thinre"
