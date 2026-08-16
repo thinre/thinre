@@ -29,7 +29,11 @@ type Operation struct {
 // Local is the persisted reconciliation state.
 type Local struct {
 	ObservedVersion string `json:"observed_version,omitempty"`
-	LastGeneration  int64  `json:"last_generation"`
+	// ConfigRevision is the last configuration bundle revision that was
+	// COMPLETELY applied; partial application never updates it (bundle
+	// consistency rule, architecture §10).
+	ConfigRevision int64 `json:"config_revision,omitempty"`
+	LastGeneration int64 `json:"last_generation"`
 	// LastStatus/LastMessage remember the outcome of the last completed
 	// operation so periodic reports keep showing it — a terminal
 	// "failed" or "rolled-back" must not be erased by the next idle

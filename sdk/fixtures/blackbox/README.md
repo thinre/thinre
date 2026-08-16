@@ -22,11 +22,14 @@ tests. It has no daemon: the application is a directory.
 | `rollback.sh` | Restores `previous/` |
 | `version.sh` | Prints `VERSION` — the Supervisor's observed-version source |
 | `health.sh` | 0 when `VERSION` is readable and no marker present |
-| `validate-config.sh`, `apply-config.sh` | Accept-everything stubs until configuration bundles land |
+| `validate-config.sh <staged-dir>` | Rejects the staged bundle when the `fail-validate` marker is present or the staged dir is empty |
+| `apply-config.sh` | Accept-everything stub (nothing to reload) |
 
 ## Failure injection
 
 - `touch /opt/blackbox/fail-upgrade` — next upgrade fails before changing anything
+- `touch /opt/blackbox/slow-upgrade` — upgrades take 10s (for kill-mid-operation tests)
+- `touch /opt/blackbox/fail-validate` — configuration validation rejects every revision
 - `touch /opt/blackbox/unhealthy` — health checks fail until removed
 
 ## Building release artifacts
