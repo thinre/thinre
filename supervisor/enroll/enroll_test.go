@@ -17,22 +17,30 @@ func TestDo(t *testing.T) {
 			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
 		var req protocol.EnrollRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Token != "tok" {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Token != "tok" || len(req.Integrations) != 2 {
 			t.Errorf("bad request body: %+v (%v)", req, err)
 		}
 		_ = json.NewEncoder(w).Encode(protocol.EnrollResponse{
-			RuntimeID:      "rt-1",
 			OrganizationID: "org-1",
-			MachineToken:   "mt-1",
+			Runtimes: []protocol.EnrolledRuntime{
+				{IntegrationName: "app-a", RuntimeID: "rt-a", MachineToken: "mt-a"},
+				{IntegrationName: "app-b", RuntimeID: "rt-b", MachineToken: "mt-b"},
+			},
 		})
 	}))
 	defer srv.Close()
 
-	resp, err := Do(context.Background(), srv.URL, protocol.EnrollRequest{Token: "tok", Name: "n", IntegrationName: "blackbox"})
+	resp, err := Do(context.Background(), srv.URL, protocol.EnrollRequest{
+		Token: "tok",
+		Integrations: []protocol.EnrollIntegration{
+			{IntegrationName: "app-a", Name: "host/app-a"},
+			{IntegrationName: "app-b", Name: "host/app-b"},
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.RuntimeID != "rt-1" || resp.MachineToken != "mt-1" {
+	if resp.OrganizationID != "org-1" || len(resp.Runtimes) != 2 || resp.Runtimes[1].MachineToken != "mt-b" {
 		t.Fatalf("unexpected response: %+v", resp)
 	}
 }
@@ -51,13 +59,23 @@ func TestDoRejected(t *testing.T) {
 }
 
 func TestDoIncompleteResponse(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"runtime_id":"rt-1"}`))
-	}))
-	defer srv.Close()
-
-	_, err := Do(context.Background(), srv.URL, protocol.EnrollRequest{Token: "tok"})
-	if err == nil || !strings.Contains(err.Error(), "incomplete") {
-		t.Fatalf("incomplete response accepted: %v", err)
+	// One runtime missing from the answer, one runtime missing its token —
+	// both must be rejected as incomplete.
+	cases := []string{
+		`{"organization_id":"org-1","runtimes":[]}`,
+		`{"organization_id":"org-1","runtimes":[{"integration_name":"app-a","runtime_id":"rt-a"}]}`,
+	}
+	for _, body := range cases {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(body))
+		}))
+		req := protocol.EnrollRequest{
+			Token:        "tok",
+			Integrations: []protocol.EnrollIntegration{{IntegrationName: "app-a", Name: "n"}},
+		}
+		if _, err := Do(context.Background(), srv.URL, req); err == nil || !strings.Contains(err.Error(), "incomplete") {
+			t.Fatalf("incomplete response accepted (%s): %v", body, err)
+		}
+		srv.Close()
 	}
 }

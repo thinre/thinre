@@ -6,6 +6,7 @@
 #   THINRE_OPAMP_URL         gateway WebSocket    (default: host.docker.internal:8081)
 #   THINRE_RUNTIME_NAME      display name         (default: container hostname)
 #   THINRE_ENROLLMENT_TOKEN  consumed on first start (read by the supervisor itself)
+#   THINRE_SECOND_APP        "1" also manages the blackbox-b copy (multi-app tests)
 set -eu
 
 API_URL="${THINRE_API_URL:-http://host.docker.internal:8080}"
@@ -15,8 +16,14 @@ NAME="${THINRE_RUNTIME_NAME:-$(hostname)}"
 cat > /etc/thinre/supervisor.yaml <<EOF
 api_url: $API_URL
 opamp_url: $OPAMP_URL
-integration_manifest: /etc/thinre/integrations/blackbox.yaml
 name: $NAME
+integrations:
+  - manifest: /etc/thinre/integrations/blackbox.yaml
 EOF
+if [ "${THINRE_SECOND_APP:-}" = "1" ]; then
+    cat >> /etc/thinre/supervisor.yaml <<EOF
+  - manifest: /etc/thinre/integrations/blackbox-b.yaml
+EOF
+fi
 
 exec /usr/local/bin/thinre-supervisor "$@"

@@ -55,8 +55,13 @@ func Do(ctx context.Context, apiURL string, req protocol.EnrollRequest) (*protoc
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return nil, fmt.Errorf("decode enrollment response: %w", err)
 	}
-	if out.RuntimeID == "" || out.OrganizationID == "" || out.MachineToken == "" {
+	if out.OrganizationID == "" || len(out.Runtimes) != len(req.Integrations) {
 		return nil, fmt.Errorf("enrollment response is incomplete")
+	}
+	for _, rt := range out.Runtimes {
+		if rt.IntegrationName == "" || rt.RuntimeID == "" || rt.MachineToken == "" {
+			return nil, fmt.Errorf("enrollment response is incomplete")
+		}
 	}
 	return &out, nil
 }
