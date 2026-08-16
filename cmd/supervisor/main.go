@@ -114,6 +114,7 @@ func run(log *slog.Logger, configPath string) error {
 		MachineToken:      id.MachineToken,
 		RuntimeID:         id.RuntimeID,
 		SupervisorVersion: version,
+		Labels:            cfg.Labels,
 		Manifest:          manifest,
 	})
 	log.Info("shutting down")

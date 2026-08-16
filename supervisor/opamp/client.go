@@ -9,7 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"os"
+	"runtime"
 	"time"
 
 	"github.com/google/uuid"
@@ -34,7 +37,10 @@ type Params struct {
 	MachineToken    string
 	RuntimeID       string
 	SupervisorVersion string
-	Manifest        *integrationspec.Integration
+	// Labels are the operator-defined tags from the configuration,
+	// reported as thinre.label.* attributes.
+	Labels   map[string]string
+	Manifest *integrationspec.Integration
 	Layout          supervisor.Layout
 }
 
@@ -50,15 +56,28 @@ func Run(ctx context.Context, p Params) error {
 
 	c := client.NewWebSocket(&slogAdapter{log: p.Log})
 
+	attrs := []*protobufs.KeyValue{
+		strAttr("thinre.integration", p.Manifest.Metadata.Name),
+		strAttr("thinre.supervisor.version", p.SupervisorVersion),
+		// Host identification (OTel semantic-convention names) so the
+		// cloud can show which machine a runtime actually is.
+		strAttr("host.name", hostname()),
+		strAttr("os.type", runtime.GOOS),
+		strAttr("host.arch", runtime.GOARCH),
+		strAttr("host.ip", localIP()),
+	}
+	// Operator-defined tags travel namespaced so the cloud can separate
+	// them from the well-known attributes above.
+	for key, value := range p.Labels {
+		attrs = append(attrs, strAttr("thinre.label."+key, value))
+	}
+
 	if err := c.SetAgentDescription(&protobufs.AgentDescription{
 		IdentifyingAttributes: []*protobufs.KeyValue{
 			strAttr("service.name", "thinre-supervisor"),
 			strAttr("service.instance.id", p.RuntimeID),
 		},
-		NonIdentifyingAttributes: []*protobufs.KeyValue{
-			strAttr("thinre.integration", p.Manifest.Metadata.Name),
-			strAttr("thinre.supervisor.version", p.SupervisorVersion),
-		},
+		NonIdentifyingAttributes: attrs,
 	}); err != nil {
 		return err
 	}
@@ -211,6 +230,32 @@ func strAttr(key, value string) *protobufs.KeyValue {
 		Key:   key,
 		Value: &protobufs.AnyValue{Value: &protobufs.AnyValue_StringValue{StringValue: value}},
 	}
+}
+
+// hostname is best-effort: identification must never block a connection.
+func hostname() string {
+	h, err := os.Hostname()
+	if err != nil {
+		return ""
+	}
+	return h
+}
+
+// localIP returns the machine's primary outbound IPv4/IPv6 address,
+// best-effort. The UDP "connection" never sends a packet — it only asks
+// the kernel which source address the default route would use, which
+// beats scanning interfaces on multi-homed hosts.
+func localIP() string {
+	conn, err := net.Dial("udp", "203.0.113.1:9") // TEST-NET-3, never routed
+	if err != nil {
+		return ""
+	}
+	defer conn.Close()
+	addr, ok := conn.LocalAddr().(*net.UDPAddr)
+	if !ok {
+		return ""
+	}
+	return addr.IP.String()
 }
 
 // slogAdapter bridges opamp-go's logger interface onto slog.
