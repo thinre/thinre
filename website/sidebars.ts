@@ -10,7 +10,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Reference',
       collapsed: false,
-      items: ['integration-manifest', 'supervisor-configuration', 'cli'],
+      items: ['integration-manifest', 'supervisor-configuration', 'link-protocol', 'cli'],
     },
   ],
 };

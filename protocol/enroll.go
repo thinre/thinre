@@ -4,7 +4,7 @@ package protocol
 // exchange its enrollment token for machine identities.
 const EnrollPath = "/api/v1/enroll"
 
-// MachineTokenHeader carries the Supervisor's machine token on the OpAMP
+// MachineTokenHeader carries the Supervisor's machine token on the Link
 // connection and on authenticated machine-to-cloud HTTP calls.
 const MachineTokenHeader = "X-Thinre-Machine-Token"
 

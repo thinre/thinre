@@ -41,12 +41,12 @@ func programData() string {
 
 // Config is the Supervisor's static configuration
 // (/etc/thinre/supervisor.yaml). Everything dynamic — desired state,
-// artifacts, configuration bundles — arrives over OpAMP instead.
+// artifacts, configuration bundles — arrives over the Link protocol instead.
 type Config struct {
 	// APIURL is the cloud REST endpoint, used only for enrollment.
 	APIURL string `yaml:"api_url"`
-	// OpAMPURL is the WebSocket endpoint of the OpAMP gateway.
-	OpAMPURL string `yaml:"opamp_url"`
+	// LinkURL is the WebSocket endpoint of the cloud gateway (Link protocol).
+	LinkURL string `yaml:"link_url"`
 	// EnrollmentToken is consumed exactly once on first start; the
 	// THINRE_ENROLLMENT_TOKEN environment variable overrides it so
 	// tokens can be injected without editing the file.
@@ -117,8 +117,8 @@ func LoadConfig(path string) (*Config, error) {
 		cfg.Name = host
 	}
 
-	if cfg.APIURL == "" || cfg.OpAMPURL == "" {
-		return nil, fmt.Errorf("config %s: api_url and opamp_url are required", path)
+	if cfg.APIURL == "" || cfg.LinkURL == "" {
+		return nil, fmt.Errorf("config %s: api_url and link_url are required", path)
 	}
 	if len(cfg.Integrations) == 0 {
 		return nil, fmt.Errorf("config %s: at least one integrations entry is required", path)

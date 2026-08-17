@@ -28,7 +28,7 @@ const (
 )
 
 // Report delivers an observed-state document to the cloud. Implemented by
-// the transport (the opamp package); reconciliation never talks wire
+// the transport (the link package); reconciliation never talks wire
 // protocols itself.
 type Report func(ctx context.Context, st protocol.ObservedState)
 
@@ -81,7 +81,7 @@ func (r *Reconciler) Observe(ctx context.Context) protocol.ObservedState {
 
 // Apply converges toward one desired-state document: the package part
 // first, then the configuration bundle — software in a failed state is
-// never reconfigured. Every phase transition is reported (RT-OPAMP-006/7);
+// never reconfigured. Every phase transition is reported (RT-LINK-006/7);
 // the single terminal "installed" report covers both parts.
 func (r *Reconciler) Apply(ctx context.Context, doc protocol.DesiredState) {
 	if doc.Package == nil && doc.Bundle == nil {

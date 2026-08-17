@@ -7,15 +7,15 @@ title: Supervisor configuration
 The supervisor reads one YAML file — `/etc/thinre/supervisor.yaml` by
 default on Linux, `%ProgramData%\Thinre\supervisor.yaml` on Windows.
 Everything dynamic (desired versions, artifacts, configuration bundles)
-arrives over OpAMP; this file only says who to talk to and what software
+arrives over the [Link protocol](link-protocol); this file only says who to talk to and what software
 this machine runs.
 
 ```yaml title="/etc/thinre/supervisor.yaml"
 # Cloud REST endpoint — used only for enrollment.
 api_url: https://api.<your-workspace>
 
-# WebSocket endpoint of the OpAMP gateway — the permanent connection.
-opamp_url: wss://opamp.<your-workspace>/v1/opamp
+# WebSocket endpoint of the cloud gateway — the permanent Link connection.
+link_url: wss://link.<your-workspace>/v1/link
 
 # The applications this supervisor manages — one entry per app, each
 # with its own runtime identity, reconcile loop, and state directory.
