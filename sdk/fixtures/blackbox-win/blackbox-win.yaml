@@ -21,7 +21,7 @@ package:
   version:
     executable: 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
     args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'C:\ThinreFixture\blackbox\hooks\version.ps1']
-    timeout: 15s
+    timeout: 30s
 
 configuration:
   files:
@@ -42,4 +42,4 @@ health:
   check:
     executable: 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
     args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'C:\ThinreFixture\blackbox\hooks\health.ps1']
-    timeout: 15s
+    timeout: 30s
