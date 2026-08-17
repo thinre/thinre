@@ -20,7 +20,7 @@ metadata:
   name: myapp              # required; links supervisors to this integration
 
 package:
-  upgrade:                 # REQUIRED — the only mandatory hook
+  upgrade:                 # REQUIRED
     executable: /opt/myapp/bin/upgrade.sh
     args: ["{{ artifact.path }}"]
     timeout: 120s
@@ -43,7 +43,7 @@ configuration:             # optional — managed configuration files
     executable: /opt/myapp/bin/apply-config.sh
     timeout: 30s
 
-health:                    # optional — exit 0 = healthy
+health:                    # REQUIRED — exit 0 = healthy
   check:
     executable: /opt/myapp/bin/health.sh
     timeout: 10s
@@ -77,8 +77,10 @@ event timeline, so a failing hook explains itself in the console.
   stages all files, runs `validate` against the staged copies, places
   them with backups, runs `apply`, then checks health. Any failure
   restores the backups — a rejected revision changes nothing.
-- **`health.check`** gates everything: upgrades, config changes, and
-  staged rollouts all wait on it.
+- **`health.check`** is required, not optional: it gates everything —
+  upgrades, config changes, and staged rollouts all wait on it. Without a
+  health signal Thinre could not tell a successful upgrade from a broken
+  one, so the contract insists on it.
 
 ## Trying a manifest
 

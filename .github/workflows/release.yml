@@ -21,13 +21,19 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Build supervisor binaries
+      - name: Build supervisor and CLI binaries
         env:
           CGO_ENABLED: "0"
         run: |
           mkdir -p dist
           GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-X main.version=${GITHUB_REF_NAME}" -o dist/thinre-supervisor_linux_amd64 ./cmd/supervisor
           GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-X main.version=${GITHUB_REF_NAME}" -o dist/thinre-supervisor_linux_arm64 ./cmd/supervisor
+          # The CLI is an operator tool, so it also ships for laptops.
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-X main.version=${GITHUB_REF_NAME}" -o dist/thinre_linux_amd64 ./cmd/cli
+          GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-X main.version=${GITHUB_REF_NAME}" -o dist/thinre_linux_arm64 ./cmd/cli
+          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-X main.version=${GITHUB_REF_NAME}" -o dist/thinre_darwin_arm64 ./cmd/cli
+          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "-X main.version=${GITHUB_REF_NAME}" -o dist/thinre_darwin_amd64 ./cmd/cli
+          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-X main.version=${GITHUB_REF_NAME}" -o dist/thinre_windows_amd64.exe ./cmd/cli
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:

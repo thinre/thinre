@@ -59,14 +59,22 @@ health:
     timeout: 10s
 ```
 
-Only `package.upgrade` is mandatory; `version` and `health` make the
+`package.upgrade` and `health.check` are mandatory — health is what lets
+Thinre tell a successful upgrade from a broken one. `version` makes the
 console dramatically more useful. The
 [manifest reference](integration-manifest) covers rollback and managed
 configuration files.
 
 ## 3. Register the integration in the console
 
-In the console, open **Integrations → Create**, name it `myapp`, then
+The fastest way is the [`thinre` CLI](cli), straight from the machine
+where you wrote the manifest:
+
+```bash
+thinre publish -version 1 -create /etc/thinre/integrations/myapp.yaml
+```
+
+Or in the console: open **Integrations → Create**, name it `myapp`, then
 paste the same manifest on the integration's page and publish it as
 version 1. The **Validate** button dry-runs the manifest without
 publishing anything.
