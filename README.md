@@ -1,6 +1,6 @@
 # Thinre
 
-**Thinre (Thin Runtime Enablement)** is a universal lifecycle control plane for distributed software: manage the lifecycle (install, upgrade, rollback, configure, health-check) of any software agent or daemon — treated as a black box — without that software having to implement any Thinre-specific protocol.
+**Thinre (Thin Runtime Enablement)** manages the lifecycle of any agent or daemon across large customer fleets — install, upgrade, rollback, configure, health-check — without building a custom management stack for every application. The managed software is treated as a black box: turn any existing agent or daemon into a centrally managed application in hours, not weeks, without it implementing any Thinre-specific protocol.
 
 **Documentation:** <https://thinre.github.io/thinre/> — start with the [quick start](https://thinre.github.io/thinre/quickstart). The site's source lives in [`website/`](website/).
 

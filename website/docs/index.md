@@ -5,10 +5,17 @@ title: What is Thinre?
 
 # What is Thinre?
 
-Thinre is a **universal lifecycle control plane**: it upgrades, configures,
-and watches software running on machines you don't control — customer
-servers, edge boxes, appliances — without requiring that software to know
-anything about Thinre.
+Thinre **manages the lifecycle of any agent or daemon across large
+customer fleets — without building a custom management stack for every
+application.**
+
+If you ship software that runs on machines you don't control — customer
+servers, edge boxes, appliances — you know the pattern: every product
+ends up growing its own updater, its own config pusher, its own fleet
+dashboard. Thinre replaces that per-application stack with one: **turn
+any existing agent or daemon into a centrally managed application in
+hours, not weeks**, without the software having to know anything about
+Thinre.
 
 It has two halves:
 
