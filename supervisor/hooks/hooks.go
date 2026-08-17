@@ -29,22 +29,33 @@ const maxOutput = 64 * 1024
 
 // minimalEnv is the only environment hooks receive: no inherited secrets,
 // no supervisor internals — just what a well-behaved program needs to run
-// at all. On Windows that includes SystemRoot and the temp directories:
-// much of the platform runtime (WinHTTP, .NET temp files, PowerShell)
-// fails obscurely without them.
+// at all. On Windows "minimal" still means the platform's base variables:
+// PowerShell and the .NET runtime hang or fail obscurely without
+// SystemRoot, the temp directories, and the user-profile trio, so those
+// pass through (none of them carries secrets).
 func minimalEnv() []string {
 	if runtime.GOOS == "windows" {
 		root := os.Getenv("SystemRoot")
 		if root == "" {
 			root = `C:\Windows`
 		}
-		return []string{
+		env := []string{
 			"SystemRoot=" + root,
 			"SystemDrive=" + filepath.VolumeName(root),
 			`PATH=` + root + `\System32;` + root + `\System32\WindowsPowerShell\v1.0`,
 			"TEMP=" + os.TempDir(),
 			"TMP=" + os.TempDir(),
 		}
+		for _, k := range []string{
+			"USERPROFILE", "APPDATA", "LOCALAPPDATA", "ProgramData",
+			"ProgramFiles", "PSModulePath", "PATHEXT", "COMSPEC",
+			"NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE",
+		} {
+			if v := os.Getenv(k); v != "" {
+				env = append(env, k+"="+v)
+			}
+		}
+		return env
 	}
 	return []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"}
 }
