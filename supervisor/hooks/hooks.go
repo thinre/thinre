@@ -10,7 +10,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -25,8 +28,26 @@ const DefaultTimeout = 60 * time.Second
 const maxOutput = 64 * 1024
 
 // minimalEnv is the only environment hooks receive: no inherited secrets,
-// no supervisor internals.
-var minimalEnv = []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"}
+// no supervisor internals — just what a well-behaved program needs to run
+// at all. On Windows that includes SystemRoot and the temp directories:
+// much of the platform runtime (WinHTTP, .NET temp files, PowerShell)
+// fails obscurely without them.
+func minimalEnv() []string {
+	if runtime.GOOS == "windows" {
+		root := os.Getenv("SystemRoot")
+		if root == "" {
+			root = `C:\Windows`
+		}
+		return []string{
+			"SystemRoot=" + root,
+			"SystemDrive=" + filepath.VolumeName(root),
+			`PATH=` + root + `\System32;` + root + `\System32\WindowsPowerShell\v1.0`,
+			"TEMP=" + os.TempDir(),
+			"TMP=" + os.TempDir(),
+		}
+	}
+	return []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"}
+}
 
 // Run executes the hook with optional extra arguments appended after the
 // manifest-declared ones. It returns trimmed stdout; on failure the error
@@ -43,7 +64,7 @@ func Run(ctx context.Context, h *integrationspec.Hook, extraArgs ...string) (str
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, h.Executable, append(append([]string{}, h.Args...), extraArgs...)...)
-	cmd.Env = minimalEnv
+	cmd.Env = minimalEnv()
 	// When the timeout kills the hook, grandchild processes it spawned may
 	// keep the output pipes open; WaitDelay stops Wait from blocking on
 	// them forever. (Full process-group termination is an RT-SEC-002

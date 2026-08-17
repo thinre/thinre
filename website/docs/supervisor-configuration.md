@@ -84,6 +84,29 @@ executable — for PowerShell scripts, point `executable` at
 `powershell.exe` (absolute path) and pass the script via `args`; see the
 Windows example in the [manifest reference](integration-manifest).
 
+### Running as a Windows service
+
+The supervisor integrates with the service manager directly (from an
+elevated prompt):
+
+```powershell
+thinre-supervisor.exe -service install -config C:\ProgramData\Thinre\supervisor.yaml
+thinre-supervisor.exe -service start
+# … -service stop / -service uninstall
+```
+
+`install` registers automatic start and an event-log source; fatal
+errors in service mode land in the Windows event log (source
+`thinre-supervisor`). Stop requests from SCM shut the supervisor down
+exactly like SIGTERM does elsewhere.
+
+### Hook environment on Windows
+
+Hooks always run with a minimal environment (no inherited secrets). On
+Windows that minimal set includes `SystemRoot`, a System32-only `PATH`,
+and the temp directories — enough for PowerShell and the platform
+runtime, nothing more.
+
 Two platform caveats worth knowing:
 
 - Placing configuration files fails if the managed application holds
