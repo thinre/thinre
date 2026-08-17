@@ -27,6 +27,7 @@ var version = "dev"
 
 func main() {
 	configPath := flag.String("config", supervisor.DefaultConfigPath(), "path of the supervisor configuration file")
+	serviceVerb := flag.String("service", "", "Windows service control: install|uninstall|start|stop")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
@@ -36,7 +37,27 @@ func main() {
 	}
 
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	if err := run(log, *configPath); err != nil {
+
+	if *serviceVerb != "" {
+		if err := serviceControl(*serviceVerb, *configPath); err != nil {
+			log.Error("service control", "verb", *serviceVerb, "err", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	// Under the Windows service manager the lifecycle (start/stop) comes
+	// from SCM instead of signals; runService handles it there.
+	if handled, err := runService(log, *configPath); handled {
+		if err != nil {
+			os.Exit(1)
+		}
+		return
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := run(ctx, log, *configPath); err != nil {
 		log.Error("fatal", "err", err)
 		os.Exit(1)
 	}
@@ -51,7 +72,7 @@ type app struct {
 	id       *identity.Identity
 }
 
-func run(log *slog.Logger, configPath string) error {
+func run(ctx context.Context, log *slog.Logger, configPath string) error {
 	cfg, err := supervisor.LoadConfig(configPath)
 	if err != nil {
 		return err
@@ -96,9 +117,6 @@ func run(log *slog.Logger, configPath string) error {
 		}
 		apps = append(apps, &app{name: name, manifest: manifest, layout: layout, id: id})
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	if err := enrollMissing(ctx, log, cfg, apps); err != nil {
 		return err

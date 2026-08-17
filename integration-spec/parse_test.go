@@ -135,6 +135,10 @@ package:
     executable: 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
     args: ['-File', 'C:\app\hooks\upgrade.ps1', '{{ artifact.path }}']
     timeout: 60s
+configuration:
+  files:
+    - id: main
+      destination: 'C:\app\config\app.conf'
 health:
   check:
     executable: 'C:/app/hooks/health.exe'

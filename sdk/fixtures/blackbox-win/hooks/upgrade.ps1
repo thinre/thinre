@@ -29,5 +29,14 @@ foreach ($f in "VERSION", "payload") {
     if (Test-Path $src) { Copy-Item $src (Join-Path $Previous $f) }
 }
 
-Expand-Archive -Path $Artifact -DestinationPath $AppDir -Force
+# The supervisor hands over a content-addressed file with no extension;
+# Expand-Archive insists on .zip, so stage a correctly named copy inside
+# the app directory (always writable by this hook, unlike system temp).
+$Zip = Join-Path $AppDir "artifact-stage.zip"
+Copy-Item $Artifact $Zip
+try {
+    Expand-Archive -Path $Zip -DestinationPath $AppDir -Force
+} finally {
+    Remove-Item $Zip -ErrorAction SilentlyContinue
+}
 Write-Output ("upgraded to " + (Get-Content (Join-Path $AppDir "VERSION") -TotalCount 1))

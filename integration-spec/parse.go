@@ -82,7 +82,7 @@ func Validate(in *Integration) error {
 				add("configuration.files: duplicate id %q", f.ID)
 			}
 			ids[f.ID] = true
-			if !path.IsAbs(f.Destination) {
+			if !isAbsAnyOS(f.Destination) {
 				add("configuration.files[%d].destination %q must be an absolute path", i, f.Destination)
 			} else if dests[f.Destination] {
 				add("configuration.files: duplicate destination %q", f.Destination)
