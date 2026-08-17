@@ -14,8 +14,18 @@ import (
 // version is stamped at build time via -ldflags "-X main.version=...".
 var version = "dev"
 
+const usage = `usage: thinre <command> [flags]
+
+commands:
+  publish   publish a local integration manifest to Thinre Cloud
+
+run "thinre <command> -h" for command flags, "thinre -version" for the
+version.
+`
+
 func main() {
 	showVersion := flag.Bool("version", false, "print version and exit")
+	flag.Usage = func() { fmt.Fprint(os.Stderr, usage) }
 	flag.Parse()
 
 	if *showVersion {
@@ -23,8 +33,19 @@ func main() {
 		return
 	}
 
-	// Subcommands (fleet, runtime, release, rollout, ...) arrive with the
-	// API they call; the full CLI is deliberately deferred until after v1.
-	fmt.Fprintln(os.Stderr, "thinre: no subcommands implemented yet; run with -version")
-	os.Exit(1)
+	var err error
+	switch flag.Arg(0) {
+	case "publish":
+		err = runPublish(flag.Args()[1:])
+	case "":
+		flag.Usage()
+		os.Exit(2)
+	default:
+		fmt.Fprintf(os.Stderr, "thinre: unknown command %q\n\n%s", flag.Arg(0), usage)
+		os.Exit(2)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "thinre:", err)
+		os.Exit(1)
+	}
 }
