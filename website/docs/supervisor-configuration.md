@@ -5,9 +5,10 @@ title: Supervisor configuration
 # Supervisor configuration
 
 The supervisor reads one YAML file — `/etc/thinre/supervisor.yaml` by
-default. Everything dynamic (desired versions, artifacts, configuration
-bundles) arrives over OpAMP; this file only says who to talk to and what
-software this machine runs.
+default on Linux, `%ProgramData%\Thinre\supervisor.yaml` on Windows.
+Everything dynamic (desired versions, artifacts, configuration bundles)
+arrives over OpAMP; this file only says who to talk to and what software
+this machine runs.
 
 ```yaml title="/etc/thinre/supervisor.yaml"
 # Cloud REST endpoint — used only for enrollment.
@@ -25,7 +26,7 @@ integrations:
     name: logs-edge-paris-01
 
 # Writable state directory (identity, downloads, backups).
-# Default: /var/lib/thinre
+# Default: /var/lib/thinre (Linux), %ProgramData%\Thinre\data (Windows)
 data_dir: /var/lib/thinre
 
 # Display name in the console. Default: the machine's hostname.
@@ -73,6 +74,25 @@ machine identity (an opaque token, stored with `0600` permissions under
 `data_dir`). Every later start reuses that identity; the enrollment
 token is never needed again. Revoking the identity in the console cuts
 the machine off immediately.
+
+## Windows
+
+The supervisor is a native Windows binary
+(`thinre-supervisor_windows_amd64.exe` on the releases page) with the
+same behavior; only the default paths differ (above). Hooks are any
+executable — for PowerShell scripts, point `executable` at
+`powershell.exe` (absolute path) and pass the script via `args`; see the
+Windows example in the [manifest reference](integration-manifest).
+
+Two platform caveats worth knowing:
+
+- Placing configuration files fails if the managed application holds
+  them open with an exclusive lock (Windows file semantics). The
+  revision reports as failed and the backups are restored — release the
+  file in your `apply` flow or accept a restart.
+- A hook that exceeds its timeout has its process killed; child
+  processes it spawned are not reaped until job-object support lands
+  with the production-hardening milestone.
 
 ## What the supervisor reports
 

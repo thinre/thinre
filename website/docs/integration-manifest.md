@@ -82,6 +82,25 @@ event timeline, so a failing hook explains itself in the console.
   health signal Thinre could not tell a successful upgrade from a broken
   one, so the contract insists on it.
 
+## Windows hooks
+
+Hooks run any executable, so on Windows a PowerShell script is invoked
+through an absolute `powershell.exe` with the script as an argument:
+
+```yaml
+package:
+  upgrade:
+    executable: 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'C:\myapp\hooks\upgrade.ps1', '{{ artifact.path }}']
+    timeout: 120s
+```
+
+Path validation accepts both styles everywhere: manifests travel across
+platforms (a Windows host's manifest is published to the cloud), so
+`C:\…` and `/…` are both valid absolute paths regardless of where the
+manifest is checked. A complete Windows example lives in the repository
+at `sdk/fixtures/blackbox-win/`.
+
 ## Trying a manifest
 
 Paste any manifest into **Integrations → Validate** in the console for an

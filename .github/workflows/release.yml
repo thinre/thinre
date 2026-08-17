@@ -28,6 +28,8 @@ jobs:
           mkdir -p dist
           GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-X main.version=${GITHUB_REF_NAME}" -o dist/thinre-supervisor_linux_amd64 ./cmd/supervisor
           GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-X main.version=${GITHUB_REF_NAME}" -o dist/thinre-supervisor_linux_arm64 ./cmd/supervisor
+          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-X main.version=${GITHUB_REF_NAME}" -o dist/thinre-supervisor_windows_amd64.exe ./cmd/supervisor
+          GOOS=windows GOARCH=arm64 go build -trimpath -ldflags "-X main.version=${GITHUB_REF_NAME}" -o dist/thinre-supervisor_windows_arm64.exe ./cmd/supervisor
           # The CLI is an operator tool, so it also ships for laptops.
           GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-X main.version=${GITHUB_REF_NAME}" -o dist/thinre_linux_amd64 ./cmd/cli
           GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-X main.version=${GITHUB_REF_NAME}" -o dist/thinre_linux_arm64 ./cmd/cli

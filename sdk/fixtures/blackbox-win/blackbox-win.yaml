@@ -1,0 +1,45 @@
+# Integration manifest for the Windows blackbox fixture application.
+# The Windows twin of sdk/fixtures/blackbox: same lifecycle semantics,
+# PowerShell hooks, zip artifacts, installed at C:\ThinreFixture\blackbox.
+apiVersion: thinre.io/v1
+kind: Integration
+
+metadata:
+  name: blackbox-win
+
+package:
+  upgrade:
+    executable: 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'C:\ThinreFixture\blackbox\hooks\upgrade.ps1', '{{ artifact.path }}']
+    timeout: 60s
+
+  rollback:
+    executable: 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'C:\ThinreFixture\blackbox\hooks\rollback.ps1']
+    timeout: 60s
+
+  version:
+    executable: 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'C:\ThinreFixture\blackbox\hooks\version.ps1']
+    timeout: 15s
+
+configuration:
+  files:
+    - id: main
+      destination: 'C:\ThinreFixture\blackbox\config\app.conf'
+
+  validate:
+    executable: 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'C:\ThinreFixture\blackbox\hooks\validate-config.ps1', '{{ bundle.path }}']
+    timeout: 30s
+
+  apply:
+    executable: 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'C:\ThinreFixture\blackbox\hooks\apply-config.ps1']
+    timeout: 30s
+
+health:
+  check:
+    executable: 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'C:\ThinreFixture\blackbox\hooks\health.ps1']
+    timeout: 15s

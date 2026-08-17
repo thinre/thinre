@@ -120,3 +120,47 @@ func TestFixtureManifest(t *testing.T) {
 		t.Error("fixture must define the version hook — the demo depends on observed-version reporting")
 	}
 }
+
+func TestParseAcceptsWindowsPaths(t *testing.T) {
+	// Manifests travel across platforms: a Windows host's manifest is
+	// published to (and validated by) a Linux cloud, so absolute-path
+	// checking accepts both styles everywhere.
+	manifest := `
+apiVersion: thinre.io/v1
+kind: Integration
+metadata:
+  name: winapp
+package:
+  upgrade:
+    executable: 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+    args: ['-File', 'C:\app\hooks\upgrade.ps1', '{{ artifact.path }}']
+    timeout: 60s
+health:
+  check:
+    executable: 'C:/app/hooks/health.exe'
+    timeout: 10s
+`
+	if _, err := Parse([]byte(manifest)); err != nil {
+		t.Fatalf("windows-style manifest rejected: %v", err)
+	}
+
+	for _, bad := range []string{"powershell.exe", `hooks\upgrade.ps1`, "./relative"} {
+		m := `
+apiVersion: thinre.io/v1
+kind: Integration
+metadata:
+  name: winapp
+package:
+  upgrade:
+    executable: '` + bad + `'
+    timeout: 60s
+health:
+  check:
+    executable: /bin/health
+    timeout: 10s
+`
+		if _, err := Parse([]byte(m)); err == nil {
+			t.Fatalf("relative executable %q accepted", bad)
+		}
+	}
+}

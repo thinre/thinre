@@ -3,6 +3,7 @@ package supervisor
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -65,9 +66,8 @@ integrations:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.DataDir != "/var/lib/thinre" {
-		t.Errorf("data_dir default = %q", cfg.DataDir)
-	}
+	// data_dir's default is platform-dependent — TestPlatformDefaults
+	// covers it; here only the hostname fallback matters.
 	if cfg.Name == "" {
 		t.Error("name should default to the hostname")
 	}
@@ -142,5 +142,29 @@ labels:
 	t.Setenv("THINRE_LABELS", "notapair")
 	if _, err := LoadConfig(path); err == nil {
 		t.Fatal("malformed THINRE_LABELS accepted")
+	}
+}
+
+func TestPlatformDefaults(t *testing.T) {
+	cfg, err := LoadConfig(writeConfig(t, `
+api_url: https://api.example.test
+opamp_url: wss://opamp.example.test
+integrations:
+  - manifest: /etc/thinre/integrations/blackbox.yaml
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS == "windows" {
+		if !strings.HasSuffix(cfg.DataDir, `Thinre\data`) {
+			t.Errorf("windows data_dir default = %q", cfg.DataDir)
+		}
+		if !strings.HasSuffix(DefaultConfigPath(), `Thinre\supervisor.yaml`) {
+			t.Errorf("windows config default = %q", DefaultConfigPath())
+		}
+	} else {
+		if cfg.DataDir != "/var/lib/thinre" || DefaultConfigPath() != "/etc/thinre/supervisor.yaml" {
+			t.Errorf("unix defaults = %q, %q", cfg.DataDir, DefaultConfigPath())
+		}
 	}
 }

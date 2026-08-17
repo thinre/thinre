@@ -99,13 +99,27 @@ func Validate(in *Integration) error {
 	return nil
 }
 
+// isAbsAnyOS reports whether p is an absolute path on SOME operating
+// system — Unix (/opt/…) or Windows (C:\…). Manifests travel across
+// platforms (a manifest for a Windows host is published to a Linux
+// cloud), so validation cannot use the validating host's own rules.
+func isAbsAnyOS(p string) bool {
+	if path.IsAbs(p) {
+		return true
+	}
+	// Drive-letter form: "C:\…" or "C:/…".
+	return len(p) >= 3 &&
+		(p[0] >= 'A' && p[0] <= 'Z' || p[0] >= 'a' && p[0] <= 'z') &&
+		p[1] == ':' && (p[2] == '\\' || p[2] == '/')
+}
+
 // checkHook validates one hook definition; nil hooks are allowed here —
 // requiredness is decided by the caller.
 func checkHook(add func(string, ...any), name string, h *Hook) {
 	if h == nil {
 		return
 	}
-	if !path.IsAbs(h.Executable) {
+	if !isAbsAnyOS(h.Executable) {
 		add("%s.executable %q must be an absolute path", name, h.Executable)
 	}
 	if t := time.Duration(h.Timeout); t < 0 || t > maxTimeout {

@@ -4,14 +4,40 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
-// DefaultConfigPath is where the Supervisor looks for its configuration
-// unless told otherwise.
-const DefaultConfigPath = "/etc/thinre/supervisor.yaml"
+// DefaultConfigPath returns the platform's conventional configuration
+// path: /etc/thinre/supervisor.yaml on Unix-likes,
+// %ProgramData%\Thinre\supervisor.yaml on Windows.
+func DefaultConfigPath() string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(programData(), "Thinre", "supervisor.yaml")
+	}
+	return "/etc/thinre/supervisor.yaml"
+}
+
+// defaultDataDir is the writable state directory when the configuration
+// does not name one.
+func defaultDataDir() string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(programData(), "Thinre", "data")
+	}
+	return "/var/lib/thinre"
+}
+
+// programData resolves %ProgramData%, falling back to the conventional
+// location when the environment variable is unset (bare service contexts).
+func programData() string {
+	if pd := os.Getenv("ProgramData"); pd != "" {
+		return pd
+	}
+	return `C:\ProgramData`
+}
 
 // Config is the Supervisor's static configuration
 // (/etc/thinre/supervisor.yaml). Everything dynamic — desired state,
@@ -81,7 +107,7 @@ func LoadConfig(path string) (*Config, error) {
 		}
 	}
 	if cfg.DataDir == "" {
-		cfg.DataDir = "/var/lib/thinre"
+		cfg.DataDir = defaultDataDir()
 	}
 	if cfg.Name == "" {
 		host, err := os.Hostname()
