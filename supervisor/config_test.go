@@ -19,7 +19,7 @@ func writeConfig(t *testing.T, content string) string {
 
 const validConfig = `
 api_url: https://api.example.test
-opamp_url: wss://opamp.example.test
+link_url: wss://link.example.test
 integrations:
   - manifest: /etc/thinre/integrations/blackbox.yaml
 data_dir: /var/lib/thinre
@@ -42,7 +42,7 @@ func TestLoadConfig(t *testing.T) {
 func TestLoadConfigMultipleIntegrations(t *testing.T) {
 	cfg, err := LoadConfig(writeConfig(t, `
 api_url: https://api.example.test
-opamp_url: wss://opamp.example.test
+link_url: wss://link.example.test
 integrations:
   - manifest: /etc/thinre/integrations/app-a.yaml
   - manifest: /etc/thinre/integrations/app-b.yaml
@@ -59,7 +59,7 @@ integrations:
 func TestLoadConfigDefaults(t *testing.T) {
 	cfg, err := LoadConfig(writeConfig(t, `
 api_url: https://api.example.test
-opamp_url: wss://opamp.example.test
+link_url: wss://link.example.test
 integrations:
   - manifest: /etc/thinre/integrations/blackbox.yaml
 `))
@@ -81,7 +81,7 @@ func TestLoadConfigRejects(t *testing.T) {
 		{"missing integrations", strings.Replace(validConfig, "integrations:\n  - manifest: /etc/thinre/integrations/blackbox.yaml", "", 1), "integrations"},
 		{"entry without manifest", strings.Replace(validConfig, "- manifest: /etc/thinre/integrations/blackbox.yaml", "- name: only-a-name", 1), "manifest is required"},
 		{"removed singular field", validConfig + "\nintegration_manifest: /etc/thinre/x.yaml\n", "integration_manifest"},
-		{"unknown field", validConfig + "\nopamp_urll: typo\n", "opamp_urll"},
+		{"unknown field", validConfig + "\nlink_urll: typo\n", "link_urll"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -148,7 +148,7 @@ labels:
 func TestPlatformDefaults(t *testing.T) {
 	cfg, err := LoadConfig(writeConfig(t, `
 api_url: https://api.example.test
-opamp_url: wss://opamp.example.test
+link_url: wss://link.example.test
 integrations:
   - manifest: /etc/thinre/integrations/blackbox.yaml
 `))

@@ -1,24 +1,11 @@
 package protocol
 
 // Transport mapping (decision G6): desired state travels as ONE JSON
-// document — this file's DesiredState — carried in the OpAMP
-// AgentRemoteConfig config map under RemoteConfigKey. One document keeps
-// package version and configuration revision atomic, which the bundle
-// consistency rule requires. The Supervisor acknowledges via the standard
-// OpAMP RemoteConfigStatus and reports rich observed state as a custom
-// message of type ObservedStateMessageType.
-
-// RemoteConfigKey is the OpAMP config-map key holding the desired-state
-// document.
-const RemoteConfigKey = "thinre-desired-state"
-
-// ObservedStateMessageType identifies the Supervisor's observed-state
-// report in OpAMP custom messages.
-const ObservedStateMessageType = "thinre.observed-state"
-
-// CustomCapability is the OpAMP custom capability string both sides
-// announce to negotiate Thinre's message exchange.
-const CustomCapability = "io.thinre.supervisor"
+// document — this file's DesiredState — carried in a Link `state`
+// envelope (see link.go). One document keeps package version and
+// configuration revision atomic, which the bundle consistency rule
+// requires. The Supervisor reports back with ObservedState, whose
+// Generation echo tells the cloud which desired state a report is about.
 
 // DesiredState is what the cloud wants the runtime to become. Package and
 // bundle travel in ONE document on purpose: the bundle-consistency rule
@@ -80,8 +67,8 @@ const (
 	HealthUnknown   = "unknown"
 )
 
-// Package status values a Supervisor may report (RT-OPAMP-006), plus the
-// configuration phases (RT-OPAMP-007).
+// Package status values a Supervisor may report (RT-LINK-006), plus the
+// configuration phases (RT-LINK-007).
 const (
 	StatusIdle        = "idle"
 	StatusDownloading = "downloading"

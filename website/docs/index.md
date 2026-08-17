@@ -16,7 +16,7 @@ It has two halves:
   "fleet X should run release 2.0.0 with configuration revision 7."
 - **The Supervisor** (this repository, Apache-2.0) — a single static
   binary on each machine. It connects outbound over WebSocket
-  ([OpAMP](https://github.com/open-telemetry/opamp-go)), receives the
+  (the [Thinre Link protocol](link-protocol)), receives the
   desired state, and **reconciles** the local software toward it.
 
 ```
@@ -59,3 +59,5 @@ contract is in the [integration manifest reference](integration-manifest).
   Thinre and your software.
 - [Supervisor configuration](supervisor-configuration) — every field of
   `supervisor.yaml`.
+- [Link protocol](link-protocol) — the three-message wire protocol
+  between supervisor and cloud.

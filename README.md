@@ -8,11 +8,11 @@ This repository contains the **open-source edge components**, licensed under [Ap
 
 | Component | Path | Purpose |
 |---|---|---|
-| Supervisor | `cmd/supervisor`, `supervisor/` | Runs next to the managed software; reconciles desired state via OpAMP and executes locally defined lifecycle hooks |
+| Supervisor | `cmd/supervisor`, `supervisor/` | Runs next to the managed software; reconciles desired state over the Thinre Link protocol and executes locally defined lifecycle hooks |
 | CLI | `cmd/cli` | Thin API client for Thinre Cloud (shipped under the command name `thinre`) |
 | Integration spec | `integration-spec/` | Schema + validation for the Integration contract between the Supervisor and black-box software |
 | Bundle format | `bundle/` | Configuration bundle manifest format |
-| Protocol types | `protocol/` | Enrollment and OpAMP payload types shared with Thinre Cloud |
+| Protocol types | `protocol/` | Enrollment and Link protocol types shared with Thinre Cloud |
 | SDK & fixtures | `sdk/` | Integration SDK and local integration test tools |
 
 ## The boundary

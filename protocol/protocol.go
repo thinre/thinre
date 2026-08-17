@@ -1,6 +1,6 @@
 // Package protocol defines the wire contracts shared between the Thinre
 // Supervisor and Thinre Cloud: enrollment request/response payloads and the
-// desired-state document carried over OpAMP.
+// desired-state document carried over the Link protocol.
 //
 // This package is the single source of truth for these contracts. Thinre
 // Cloud imports it; it must never depend on anything cloud-side.

@@ -1,6 +1,6 @@
 // Command supervisor is the Thinre Supervisor: the open-source edge agent
 // that runs next to a managed black-box application, receives desired state
-// from Thinre Cloud over OpAMP, and reconciles it by executing locally
+// from Thinre Cloud over the Link protocol, and reconciles it by executing locally
 // defined lifecycle hooks.
 package main
 
@@ -19,7 +19,7 @@ import (
 	"github.com/thinre/thinre/supervisor"
 	"github.com/thinre/thinre/supervisor/enroll"
 	"github.com/thinre/thinre/supervisor/identity"
-	"github.com/thinre/thinre/supervisor/opamp"
+	"github.com/thinre/thinre/supervisor/link"
 )
 
 // version is stamped at build time via -ldflags "-X main.version=...".
@@ -128,7 +128,7 @@ func run(ctx context.Context, log *slog.Logger, configPath string) error {
 		"data_dir", cfg.DataDir,
 	)
 
-	// One independent reconcile loop + OpAMP connection per application.
+	// One independent reconcile loop + Link connection per application.
 	// The first loop to fail cancels the rest; the process exits so the
 	// service manager can restart everything together.
 	runCtx, cancel := context.WithCancel(ctx)
@@ -137,12 +137,11 @@ func run(ctx context.Context, log *slog.Logger, configPath string) error {
 	for _, a := range apps {
 		go func(a *app) {
 			appLog := log.With("integration", a.manifest.Metadata.Name)
-			err := opamp.Run(runCtx, opamp.Params{
+			err := link.Run(runCtx, link.Params{
 				Layout:            a.layout,
 				Log:               appLog,
-				OpAMPURL:          cfg.OpAMPURL,
+				LinkURL:           cfg.LinkURL,
 				MachineToken:      a.id.MachineToken,
-				RuntimeID:         a.id.RuntimeID,
 				SupervisorVersion: version,
 				Labels:            cfg.Labels,
 				Manifest:          a.manifest,

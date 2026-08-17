@@ -92,7 +92,7 @@ machine. The name in `metadata.name` links the two at enrollment.
 
 ```yaml title="/etc/thinre/supervisor.yaml"
 api_url: https://api.<your-workspace>
-opamp_url: wss://opamp.<your-workspace>/v1/opamp
+link_url: wss://link.<your-workspace>/v1/link
 integrations:
   - manifest: /etc/thinre/integrations/myapp.yaml
 
