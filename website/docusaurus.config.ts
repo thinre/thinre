@@ -8,7 +8,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'Thinre',
-  tagline: 'Universal lifecycle control plane for black-box software',
+  tagline: 'Manage the lifecycle of any agent or daemon across large fleets',
   favicon: 'img/favicon.png',
 
   future: {
