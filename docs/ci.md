@@ -9,6 +9,7 @@ Any change to a workflow, Makefile target, or this pipeline behavior must update
 | Job | What it checks |
 |---|---|
 | `build-test` | `go build ./...` then `go test ./...` |
+| `windows-test` | The same build + full test suite on `windows-latest` — keeps path and permission handling portable for the Windows supervisor. |
 | `lint` | `golangci-lint run` (config: `.golangci.yml`, default linter set) |
 | `docs` | Builds the public documentation site (`website/`, Docusaurus). Broken internal links fail the build (`onBrokenLinks: throw`). |
 | `boundary` | Greps Go sources, module files, and Markdown docs (`*.go`, `go.mod`, `go.sum`, `*.md`) for the closed-source repository's name; any hit fails the build. This enforces the one-way dependency rule: nothing here may reference the closed-source repository. |

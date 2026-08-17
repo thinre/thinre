@@ -27,7 +27,10 @@ curl -fL -o /usr/local/bin/thinre-supervisor \
 chmod +x /usr/local/bin/thinre-supervisor
 ```
 
-(Use `thinre-supervisor_linux_arm64` on ARM machines.)
+(Use `thinre-supervisor_linux_arm64` on ARM machines. Windows hosts use
+`thinre-supervisor_windows_amd64.exe` with PowerShell hooks and
+`%ProgramData%\Thinre\` defaults — the manifest and configuration below
+work identically, only the paths change.)
 
 ## 2. Describe your software
 

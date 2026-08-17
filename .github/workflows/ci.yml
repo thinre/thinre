@@ -21,6 +21,21 @@ jobs:
       - name: Test
         run: go test ./...
 
+  # The supervisor ships for Windows too; running the full suite there
+  # keeps path and permission handling portable.
+  windows-test:
+    name: windows-test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build
+        run: go build ./...
+      - name: Test
+        run: go test ./...
+
   lint:
     name: lint
     runs-on: ubuntu-latest

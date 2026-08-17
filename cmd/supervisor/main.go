@@ -26,7 +26,7 @@ import (
 var version = "dev"
 
 func main() {
-	configPath := flag.String("config", supervisor.DefaultConfigPath, "path of the supervisor configuration file")
+	configPath := flag.String("config", supervisor.DefaultConfigPath(), "path of the supervisor configuration file")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
